@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>OutputSchema__c</fullName>
+    <description>JSON Schema required for the final model output.</description>
+    <inlineHelpText>Closed JSON Schema for the final answer: every object needs additionalProperties: false. The model adapter uses it for structured output, and Core validates the final answer against it.</inlineHelpText>
+    <label>Output Schema</label>
+    <length>131072</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>10</visibleLines>
+</CustomField>

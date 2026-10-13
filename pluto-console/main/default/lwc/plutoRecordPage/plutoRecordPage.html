@@ -1,0 +1,76 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <template lwc:if={showInline}>
+        <template lwc:if={isAgent}>
+            <c-pluto-agent-detail
+                record-id={effectiveRecordId}
+                mode={inlineMode}
+                hide-header
+                onmodechange={handleModeChange}
+                onrecordsaved={handleInlineSaved}
+                onback={handleBack}></c-pluto-agent-detail>
+        </template>
+        <template lwc:if={isTool}>
+            <c-pluto-tool-detail
+                record-id={effectiveRecordId}
+                mode={inlineMode}
+                hide-header
+                onmodechange={handleModeChange}
+                onrecordsaved={handleInlineSaved}
+                onback={handleBack}></c-pluto-tool-detail>
+        </template>
+        <template lwc:if={isContextProvider}>
+            <c-pluto-context-provider-detail
+                record-id={effectiveRecordId}
+                mode={inlineMode}
+                hide-header
+                onmodechange={handleModeChange}
+                onrecordsaved={handleInlineSaved}
+                onback={handleBack}></c-pluto-context-provider-detail>
+        </template>
+        <template lwc:if={isExecutionIdentity}>
+            <c-pluto-execution-identity-detail
+                record-id={effectiveRecordId}
+                mode={inlineMode}
+                hide-header
+                onmodechange={handleModeChange}
+                onrecordsaved={handleInlineSaved}
+                onback={handleBack}></c-pluto-execution-identity-detail>
+        </template>
+        <!--
+        <template lwc:if={isApprovalRoute}>
+            <c-pluto-approval-route-detail
+                record-id={effectiveRecordId}
+                mode={inlineMode}
+                hide-header
+                onmodechange={handleModeChange}
+                onrecordsaved={handleInlineSaved}
+                onback={handleBack}></c-pluto-approval-route-detail>
+        </template>
+        <template lwc:if={isChannelRoute}>
+            <c-pluto-channel-route-detail
+                record-id={effectiveRecordId}
+                mode={inlineMode}
+                hide-header
+                onmodechange={handleModeChange}
+                onrecordsaved={handleInlineSaved}
+                onback={handleBack}></c-pluto-channel-route-detail>
+        </template>
+        -->
+    </template>
+    <template lwc:if={isUnsupported}>
+        <p class="slds-p-around_medium slds-text-color_weak" data-id="unsupported">Pluto has no editor for this object. Remove this component from the page.</p>
+    </template>
+</template>

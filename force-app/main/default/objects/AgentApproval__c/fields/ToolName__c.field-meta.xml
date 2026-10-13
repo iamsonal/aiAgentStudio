@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ToolName__c</fullName>
+    <description>Developer name of the tool waiting for approval.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>The tool the agent wants to call. Use Review Input on the record to see what it will send.</inlineHelpText>
+    <label>Tool Name</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

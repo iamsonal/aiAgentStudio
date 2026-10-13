@@ -1,0 +1,67 @@
+name: Docs
+
+# Builds the docs site on every pull request that touches it, and publishes it
+# to GitHub Pages on every push to main. The reference pages are built from the
+# Core, Pluto Model Adapters, and Pluto Console metadata, so changes there rebuild it too.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs-starlight/**'
+      - 'force-app/**'
+      - 'pluto-model-adapters/**'
+      - 'pluto-console/**'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'docs-starlight/**'
+      - 'force-app/**'
+      - 'pluto-model-adapters/**'
+      - 'pluto-console/**'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer pull request build replaces an older one. A Pages deploy is never cut short.
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs-starlight
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history, so each page can show when it last changed.
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npm install
+      - run: npm run build
+        env:
+          DOCS_BASE_PATH: /aiAgentStudio
+      - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs-starlight/dist
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

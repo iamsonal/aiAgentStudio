@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PrincipalUser__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>The dedicated, active Salesforce user whose permissions limit what the agent&apos;s runs can read and change.</description>
+    <inlineHelpText>Select a dedicated, active execution user with only the access its tools need and the Agent Kernel Service Principal permission set. The user must not have Agent Kernel Human Decision or Agent Kernel Approval Relay authority.</inlineHelpText>
+    <label>User</label>
+    <referenceTo>User</referenceTo>
+    <relationshipLabel>Agent Execution Identities</relationshipLabel>
+    <relationshipName>AgentExecutionIdentities</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

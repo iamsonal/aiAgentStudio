@@ -1,0 +1,186 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <lightning-quick-action-panel header="Operate Agent Run">
+        <div class="slds-is-relative">
+            <template lwc:if={loading}>
+                <div class="loading slds-is-relative">
+                    <lightning-spinner alternative-text="Loading the run" size="small"></lightning-spinner>
+                </div>
+            </template>
+            <template lwc:if={errorMessage}>
+                <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_small" role="alert">
+                    <lightning-icon icon-name="utility:error" size="x-small" variant="inverse" class="slds-m-right_x-small"></lightning-icon>
+                    <span>{errorMessage}</span>
+                </div>
+            </template>
+            <template lwc:if={view}>
+                <section class={stateClass} aria-label="Run state">
+                    <div class="slds-grid slds-wrap slds-grid_vertical-align-center">
+                        <lightning-icon icon-name={state.icon} size="small" variant={stateIconVariant} class="slds-m-right_small"></lightning-icon>
+                        <h2 class="state-title slds-text-heading_small slds-grow slds-m-right_small">{state.title}</h2>
+                        <lightning-badge lwc:if={showStatusBadge} label={view.status}></lightning-badge>
+                    </div>
+                    <p lwc:if={state.detail} class="slds-m-top_small">{state.detail}</p>
+                    <template lwc:if={budgetRows}>
+                        <dl class="budget">
+                            <template for:each={budgetRows} for:item="row">
+                                <div key={row.key} class="budget-row">
+                                    <dt class="budget-label">{row.label}</dt>
+                                    <dd class={row.valueClass}>{row.value}</dd>
+                                </div>
+                            </template>
+                        </dl>
+                    </template>
+                    <p lwc:if={state.until} class="state-until slds-text-body_small slds-text-color_weak slds-m-top_x-small">{state.until}</p>
+                    <p lwc:if={state.action} class="state-action slds-m-top_x-small"><strong>What to do:</strong> {state.action}</p>
+                    <p lwc:if={state.code} class="slds-text-body_small slds-text-color_weak slds-m-top_small slds-wrap">
+                        <span>{state.code}</span>
+                        <template lwc:if={state.message}><span> · {state.message}</span></template>
+                    </p>
+                </section>
+
+                <template lwc:if={continueBlockedReason}>
+                    <p class="continue-blocked slds-box slds-theme_shade slds-m-bottom_small" role="note">{continueBlockedReason}</p>
+                </template>
+                <template lwc:if={hasActions}>
+                    <template lwc:if={hasChoice}>
+                        <lightning-radio-group
+                            name="action"
+                            data-field="action"
+                            label="What do you want to do?"
+                            options={actionOptions}
+                            value={action}
+                            type="radio"
+                            onchange={handleAction}
+                            disabled={busy}></lightning-radio-group>
+                    </template>
+                    <template lwc:else>
+                        <h3 class="only-action slds-text-title_bold">{selectedAction.submit}</h3>
+                    </template>
+                    <p class="action-description slds-text-color_weak slds-m-top_x-small slds-m-bottom_medium">{selectedAction.description}</p>
+
+                    <div class="slds-m-top_small">
+                        <template lwc:if={rescueBudgetNote}>
+                            <div class="rescue-blocked" role="note">
+                                <p class="rescue-blocked-text">{rescueBudgetNote}</p>
+                                <template lwc:if={agentUrl}>
+                                    <a href={agentUrl} target="_blank" class="agent-link">Open the agent</a>
+                                </template>
+                                <lightning-button variant="base" label="Check again" onclick={load} disabled={busy} class="check-again"></lightning-button>
+                            </div>
+                        </template>
+                        <template lwc:if={isRescue}>
+                            <lightning-textarea
+                                label="Guidance for the agent"
+                                max-length="500"
+                                placeholder="For example: I fixed the setup. Carry on from where you stopped."
+                                field-level-help="Fix the cause first. The agent reads this as it continues."
+                                onchange={handleText}
+                                data-field="guidance"></lightning-textarea>
+                        </template>
+                        <template lwc:if={isPause}>
+                            <lightning-textarea
+                                label="Reason (optional)"
+                                max-length="500"
+                                placeholder="Why the run should stop for now"
+                                onchange={handleText}
+                                data-field="reason"></lightning-textarea>
+                        </template>
+                        <template lwc:if={isCancel}>
+                            <lightning-textarea
+                                label="Reason (optional)"
+                                max-length="500"
+                                placeholder="Why the run should end"
+                                onchange={handleText}
+                                data-field="reason"></lightning-textarea>
+                        </template>
+                        <template lwc:if={isReconcile}>
+                            <div class="caution slds-box slds-theme_shade slds-m-bottom_small" role="note">
+                                <lightning-icon icon-name="utility:warning" size="x-small" class="slds-m-right_x-small"></lightning-icon>
+                                <span>
+                                    Check <strong>{unknownToolLabel}</strong> in the system it acted on, then record what you found. Never repeat it only
+                                    because no response arrived.
+                                </span>
+                            </div>
+                            <lightning-radio-group
+                                label="What happened"
+                                options={decisionOptions}
+                                value={decision}
+                                onchange={handleDecision}
+                                type="radio"
+                                class="slds-m-bottom_small"></lightning-radio-group>
+                            <template lwc:if={isConfirmSucceeded}>
+                                <lightning-textarea
+                                    label="Result"
+                                    required
+                                    placeholder={resultPlaceholder}
+                                    field-level-help="The JSON the tool would have returned. The agent continues with it."
+                                    onchange={handleText}
+                                    data-field="confirmedOutput"></lightning-textarea>
+                            </template>
+                            <template lwc:if={isConfirmFailed}>
+                                <lightning-textarea
+                                    label="What failed"
+                                    max-length="1000"
+                                    field-level-help="Returned to the agent as the tool's error."
+                                    onchange={handleText}
+                                    data-field="failureMessage"></lightning-textarea>
+                                <template lwc:if={mustPause}>
+                                    <p class="slds-text-color_weak slds-m-top_x-small">The run pauses. Only the person who started it can continue it.</p>
+                                </template>
+                                <template lwc:else>
+                                    <lightning-input
+                                        type="checkbox"
+                                        label="Pause the run instead of letting the agent continue"
+                                        onchange={handlePauseRun}
+                                        class="slds-m-top_x-small"></lightning-input>
+                                </template>
+                            </template>
+                            <template lwc:if={isRetry}>
+                                <lightning-input
+                                    type="checkbox"
+                                    label="I verified that repeating this call is safe"
+                                    required
+                                    onchange={handleSafeToRetry}></lightning-input>
+                            </template>
+                            <lightning-textarea
+                                label="Evidence"
+                                max-length="500"
+                                required
+                                placeholder="What you checked, for example the order number in the ERP"
+                                onchange={handleText}
+                                data-field="reason"
+                                class="slds-m-top_small"></lightning-textarea>
+                        </template>
+                    </div>
+                </template>
+                <template lwc:else>
+                    <p class="slds-text-color_weak">No operator action applies to this run now.</p>
+                </template>
+            </template>
+        </div>
+        <div slot="footer">
+            <lightning-button variant="neutral" label="Close" onclick={close} disabled={busy}></lightning-button>
+            <template lwc:if={hasActions}>
+                <lightning-button
+                    variant={submitVariant}
+                    label={submitLabel}
+                    onclick={handleSubmit}
+                    disabled={submitDisabled}
+                    class="slds-m-left_x-small"></lightning-button>
+            </template>
+        </div>
+    </lightning-quick-action-panel>
+</template>

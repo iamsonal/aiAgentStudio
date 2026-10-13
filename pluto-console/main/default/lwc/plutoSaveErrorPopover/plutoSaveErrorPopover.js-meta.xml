@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>68.0</apiVersion>
+    <description>Record-page style save error icon and popover used beside a Save button.</description>
+    <isExposed>false</isExposed>
+    <masterLabel>Pluto Save Error Popover</masterLabel>
+</LightningComponentBundle>

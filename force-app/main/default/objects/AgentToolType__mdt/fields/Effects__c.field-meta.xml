@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Effects__c</fullName>
+    <description>What a tool of this type can change, which decides how Core recovers a failed or lost call. Stays in This Org: Core runs each call inside a savepoint, so a failed or lost call leaves nothing behind and may repeat. Reads Outside Systems: the tool calls outside systems but never changes anything there, so Core repeats a failed or lost call. Changes Outside Systems: Core never repeats a call whose outcome is unconfirmed unless the tool itself asks for a retry, and an operator reconciles it instead. Core treats an unknown value as Changes Outside Systems.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Stays in This Org: reads or changes this org&apos;s records only. Reads Outside Systems: only looks things up elsewhere, such as a GET request. Changes Outside Systems: may send, create, change, or delete anything outside, including email. When unsure, choose Changes Outside Systems.</inlineHelpText>
+    <label>Effects</label>
+    <required>true</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>InOrg</fullName>
+                <default>false</default>
+                <label>Stays in This Org</label>
+            </value>
+            <value>
+                <fullName>ReadsOutside</fullName>
+                <default>false</default>
+                <label>Reads Outside Systems</label>
+            </value>
+            <value>
+                <fullName>ChangesOutside</fullName>
+                <default>false</default>
+                <label>Changes Outside Systems</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Detail__c</fullName>
+    <description>A short, content-free detail: an exception type, a reason code, or which agent and record a lost start was for.</description>
+    <inlineHelpText>Read-only. Never holds message content or protected values.</inlineHelpText>
+    <label>Detail</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+</CustomField>

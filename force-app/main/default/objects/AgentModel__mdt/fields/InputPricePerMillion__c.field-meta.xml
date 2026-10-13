@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InputPricePerMillion__c</fullName>
+    <description>Current USD price for one million input tokens. Core copies it onto each model invocation with the estimated cost.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Optional. Set both prices to record an estimated cost on each model call. Update it when the provider&apos;s price changes.</inlineHelpText>
+    <label>Input Price per Million Tokens</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>6</scale>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

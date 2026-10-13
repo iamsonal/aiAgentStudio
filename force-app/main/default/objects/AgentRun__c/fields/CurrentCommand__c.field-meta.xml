@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CurrentCommand__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>System-maintained Current Command for this durable agent run.</description>
+    <inlineHelpText>Read-only operational state. Core updates this value as the run progresses.</inlineHelpText>
+    <label>Current Command</label>
+    <referenceTo>AgentCommand__c</referenceTo>
+    <relationshipLabel>Current Agent Runs</relationshipLabel>
+    <relationshipName>CurrentAgentRuns</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

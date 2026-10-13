@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>OccurrenceCount__c</fullName>
+    <defaultValue>1</defaultValue>
+    <description>How many times this failure was signalled while the issue was open.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Read-only. Pluto Core counts repeats of the same failure here.</inlineHelpText>
+    <label>Occurrences</label>
+    <precision>9</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

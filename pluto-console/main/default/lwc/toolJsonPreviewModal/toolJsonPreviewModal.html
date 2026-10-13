@@ -1,0 +1,30 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <lightning-modal-header label="What the model is sent"></lightning-modal-header>
+    <lightning-modal-body>
+        <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">
+            The exact input schema the model receives for this tool, with your edits applied. The model sends only these inputs.
+        </p>
+        <template if:true={hasSchema}>
+            <c-tool-json-read-only-preview label="Input schema" value={inputSchema} height="60vh"></c-tool-json-read-only-preview>
+        </template>
+        <template if:false={hasSchema}>
+            <p class="slds-text-color_weak">{emptyMessage}</p>
+        </template>
+    </lightning-modal-body>
+    <lightning-modal-footer>
+        <lightning-button label="Close" onclick={handleClose}></lightning-button>
+    </lightning-modal-footer>
+</template>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InvocationKey__c</fullName>
+    <caseSensitive>true</caseSensitive>
+    <description>Immutable command-and-attempt key used to prevent duplicate evidence rows.</description>
+    <externalId>true</externalId>
+    <inlineHelpText>Unique durable key preventing duplicate evidence for the same attempt.</inlineHelpText>
+    <label>Invocation Key</label>
+    <length>64</length>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

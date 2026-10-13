@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PayloadPurgedAt__c</fullName>
+    <description>Timestamp when retained command payload fields were cleared by the bounded retention process.</description>
+    <inlineHelpText>Read-only audit evidence maintained by Pluto Core retention processing.</inlineHelpText>
+    <label>Payload Purged At</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

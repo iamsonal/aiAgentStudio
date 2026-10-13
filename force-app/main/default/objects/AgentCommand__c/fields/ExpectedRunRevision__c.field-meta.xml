@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExpectedRunRevision__c</fullName>
+    <description>Run revision that must match before this command may change durable state.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Read-only. Core rejects stale or duplicate workers when this value differs from the run&apos;s current revision.</inlineHelpText>
+    <label>Expected Run Revision</label>
+    <precision>18</precision>
+    <required>true</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

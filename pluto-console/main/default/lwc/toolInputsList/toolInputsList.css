@@ -1,0 +1,70 @@
+/*
+ * This file is part of Pluto. It is licensed under the GNU Affero General
+ * Public License, version 3 only. See the LICENSE file at the root of this
+ * repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+ *
+ * The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+ * uses only Pluto's public interface stay under its own license.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * Copyright (c) 2026 Sonal
+ */
+
+.col-name {
+    width: 28%;
+}
+
+.col-type {
+    width: 16%;
+}
+
+.col-required {
+    width: 6rem;
+}
+
+.input-row td {
+    vertical-align: top;
+}
+
+.tree {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+/* An L-shaped connector from the parent above to this input. */
+.tree__elbow {
+    flex-shrink: 0;
+    width: 0.75rem;
+    height: 0.875rem;
+    margin-top: -0.625rem;
+    margin-left: 0.25rem;
+    border-left: 1px solid var(--slds-g-color-border-base-4, #c9c9c9);
+    border-bottom: 1px solid var(--slds-g-color-border-base-4, #c9c9c9);
+    border-bottom-left-radius: 0.125rem;
+}
+
+.tree__icon {
+    flex-shrink: 0;
+    --slds-c-icon-color-foreground-default: var(--slds-g-color-neutral-base-50, #747474);
+}
+
+.input-name {
+    font-family: Menlo, Consolas, monospace;
+    font-size: 0.8125rem;
+    min-width: 0;
+}
+
+.group-row td {
+    background: var(--slds-g-color-neutral-base-95, #f3f3f3);
+}
+
+.group-row .input-name {
+    font-weight: 700;
+}
+
+.left-out .input-name {
+    text-decoration: line-through;
+}

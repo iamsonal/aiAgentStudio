@@ -1,20 +1,13 @@
 {
     "orgName": "aiAgentStudio",
     "edition": "Developer",
-    "features": [
-        "Knowledge",
-        "LightningServiceConsole",
-        "Communities",
-        "LiveAgent",
-        "ServiceCloud",
-        "EnableSetPasswordInApi"
-    ],
+    "features": ["Knowledge", "LightningServiceConsole", "Communities", "LiveAgent", "ServiceCloud", "EnableSetPasswordInApi"],
     "settings": {
         "communitiesSettings": {
-            "enableNetworksEnabled": true
+            "enableNetworksEnabled": false
         },
         "liveAgentSettings": {
-            "enableLiveAgent": true
+            "enableLiveAgent": false
         },
         "knowledgeSettings": {
             "enableKnowledge": true,
@@ -23,11 +16,17 @@
         "lightningExperienceSettings": {
             "enableS1DesktopEnabled": true
         },
+        "mobileSettings": {
+            "enableS1EncryptedStoragePref2": false
+        },
         "pathAssistantSettings": {
             "pathAssistantEnabled": true
         },
         "languageSettings": {
             "enableTranslationWorkbench": true
+        },
+        "deploymentSettings": {
+            "doesSkipAsyncApexValidation": true
         }
     }
 }

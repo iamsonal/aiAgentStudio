@@ -1,0 +1,186 @@
+/*
+ * This file is part of Pluto. It is licensed under the GNU Affero General
+ * Public License, version 3 only. See the LICENSE file at the root of this
+ * repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+ *
+ * The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+ * uses only Pluto's public interface stay under its own license.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * Copyright (c) 2026 Sonal
+ */
+
+.loading {
+    position: relative;
+    min-height: 8rem;
+}
+
+.screen {
+    min-height: 16rem;
+}
+
+.screen__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.form-section + .form-section {
+    margin-top: 1rem;
+}
+
+.form-section__heading {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.0625rem;
+    text-transform: uppercase;
+    color: var(--slds-g-color-neutral-base-30, #444);
+    margin-bottom: 0.25rem;
+}
+
+.field + .field {
+    margin-top: 0.5rem;
+}
+
+.code {
+    font-family: Menlo, Consolas, monospace;
+}
+
+.code_tall {
+    --slds-c-textarea-sizing-min-height: 16rem;
+}
+
+.record {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--slds-g-color-border-base-1, #e5e5e5);
+}
+
+.empty {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 16rem;
+    padding: 1rem;
+}
+
+.running-text {
+    margin-top: 5rem;
+}
+
+.banner {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 1rem;
+    border: 1px solid;
+    border-radius: 0.375rem;
+}
+
+.banner_success {
+    background: #f3faf5;
+    border-color: #91c8a7;
+}
+
+.banner_error {
+    background: #fef1f2;
+    border-color: #f1a7b3;
+}
+
+.banner_warning {
+    background: #fff7ed;
+    border-color: #f0b67f;
+}
+
+.banner_info {
+    background: #eef4ff;
+    border-color: #a8c5f0;
+}
+
+.banner__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.banner__icon_success {
+    background: #2e844a;
+}
+
+.banner__icon_error {
+    background: #ba0517;
+}
+
+.banner__icon_warning {
+    background: #a96404;
+}
+
+.banner__icon_info {
+    background: #0b5cab;
+}
+
+.banner__body {
+    min-width: 0;
+}
+
+.banner__title {
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.banner__problem {
+    margin-top: 0.25rem;
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.banner__text {
+    margin-top: 0.25rem;
+    color: var(--slds-g-color-neutral-base-30, #444);
+}
+
+.facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--slds-g-color-neutral-base-50, #747474);
+}
+
+.section-title {
+    margin: 1.25rem 0 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.output-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: Menlo, Consolas, monospace;
+    font-size: 0.8125rem;
+    padding: 0.75rem;
+    background: var(--slds-g-color-neutral-base-95, #f3f3f3);
+    border-radius: 0.25rem;
+}
+
+.sent {
+    margin-top: 1.25rem;
+}
+
+.sent summary {
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PayloadProtected__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>True once the run&apos;s payload retention mode has been applied to this command&apos;s input and output. Core applies it once, when the command leaves the model&apos;s transcript window or the run ends.</description>
+    <inlineHelpText>Read-only execution evidence. Core applies payload retention once per command.</inlineHelpText>
+    <label>Payload Protected</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

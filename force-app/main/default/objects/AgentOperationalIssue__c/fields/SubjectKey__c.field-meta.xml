@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SubjectKey__c</fullName>
+    <description>What the failure is about: an approval, work item, command, run, or a hash of the lost start.</description>
+    <inlineHelpText>Read-only. Repeats of the same code and subject add to this issue.</inlineHelpText>
+    <label>Subject Key</label>
+    <length>100</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+</CustomField>

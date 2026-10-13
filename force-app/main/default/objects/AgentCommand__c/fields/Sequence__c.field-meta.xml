@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Sequence__c</fullName>
+    <description>Position of this command in its run, assigned from the run&apos;s command sequence when Core creates it. Orders the transcript replayed to the model.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Read-only execution evidence. Core assigns it when the command is created.</inlineHelpText>
+    <label>Sequence</label>
+    <precision>8</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

@@ -1,0 +1,359 @@
+<!doctype html>
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="stylesheet" href="./toastui-editor.css" />
+        <style>
+            html,
+            body,
+            #editor {
+                height: 100%;
+                margin: 0;
+            }
+
+            body {
+                position: relative;
+            }
+
+            .mode-control {
+                position: absolute;
+                top: 0;
+                right: 0;
+                width: 90px;
+                height: 30px;
+                box-sizing: border-box;
+                background: #f7f9fc;
+                border-bottom: 1px solid #ebedf2;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            #mode-toggle {
+                height: 28px;
+                padding: 0 8px;
+                border: 1px solid #e1e3e9;
+                border-radius: 3px;
+                background: #fff;
+                color: #333;
+                font:
+                    12px Arial,
+                    sans-serif;
+                cursor: pointer;
+            }
+
+            #mode-toggle:disabled {
+                opacity: 0.6;
+                cursor: default;
+            }
+
+            .emoji-picker {
+                position: absolute;
+                top: 34px;
+                right: 8px;
+                z-index: 50;
+                display: grid;
+                grid-template-columns: repeat(6, 28px);
+                gap: 4px;
+                padding: 8px;
+                max-height: calc(100% - 54px);
+                overflow: auto;
+                background: #fff;
+                border: 1px solid #dddbda;
+                border-radius: 4px;
+                box-shadow: 0 2px 6px #0002;
+            }
+
+            .emoji-picker[hidden] {
+                display: none;
+            }
+
+            .emoji-picker button {
+                width: 28px;
+                height: 28px;
+                padding: 0;
+                background: #fff;
+                border: 1px solid transparent;
+                border-radius: 3px;
+                font-size: 20px;
+                cursor: pointer;
+            }
+
+            .emoji-picker button:hover {
+                background: #f7f9fc;
+                border-color: #e1e3e9;
+            }
+
+            #editor.is-disabled {
+                opacity: 0.6;
+                pointer-events: none;
+            }
+
+            .toastui-editor-defaultUI {
+                border: 0;
+            }
+
+            .toastui-editor-defaultUI-toolbar {
+                height: 30px;
+                align-items: center;
+                margin-right: 90px;
+            }
+
+            .toastui-editor-toolbar {
+                height: 30px;
+                flex-shrink: 0;
+            }
+
+            .toastui-editor-defaultUI .toastui-editor-md-tab-container {
+                display: none !important;
+            }
+
+            .toastui-editor-defaultUI-toolbar button {
+                height: 28px;
+                margin: 0 5px;
+            }
+
+            .toastui-editor-toolbar-group {
+                align-items: center;
+            }
+
+            #emoji-toggle {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: transparent;
+                color: #555;
+            }
+
+            .toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-icons {
+                background-position-y: 1px;
+            }
+
+            .toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-icons:not(:disabled).active {
+                background-position-y: -25px;
+            }
+
+            .toastui-editor-toolbar-divider {
+                margin: 5px 12px;
+            }
+
+            .toastui-editor-popup-add-heading li[data-level='1'],
+            .toastui-editor-popup-add-heading li[data-level='2'] {
+                display: none;
+            }
+
+            .toastui-editor-ww-container .toastui-editor-contents h1 {
+                margin: 16px 0 8px;
+            }
+
+            .toastui-editor-ww-container .toastui-editor-contents h2 {
+                margin: 12px 0 6px;
+            }
+
+            .toastui-editor-ww-container .toastui-editor-contents h3,
+            .toastui-editor-ww-container .toastui-editor-contents h4,
+            .toastui-editor-ww-container .toastui-editor-contents h5,
+            .toastui-editor-ww-container .toastui-editor-contents h6 {
+                margin: 12px 0 4px;
+            }
+
+            .toastui-editor-ww-container .toastui-editor-contents > :first-child {
+                margin-top: 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="editor"></div>
+        <div class="mode-control">
+            <button id="mode-toggle" type="button" aria-label="Switch to Markdown">Markdown</button>
+        </div>
+        <div id="emoji-picker" class="emoji-picker" role="dialog" aria-label="Insert emoji" hidden></div>
+        <script src="./toastui-editor.js"></script>
+        <script>
+            (function () {
+                var channel = new URLSearchParams(window.location.search).get('channel');
+                var editorElement = document.getElementById('editor');
+                var modeToggle = document.getElementById('mode-toggle');
+                var emojiPicker = document.getElementById('emoji-picker');
+                var emojiToggle = document.createElement('button');
+                emojiToggle.type = 'button';
+                emojiToggle.id = 'emoji-toggle';
+                emojiToggle.innerHTML =
+                    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">' +
+                    '<circle cx="12" cy="12" r="9" />' +
+                    '<path d="M8 14a4 4 0 0 0 8 0" />' +
+                    '<circle cx="9" cy="9" r="0.8" fill="currentColor" stroke="none" />' +
+                    '<circle cx="15" cy="9" r="0.8" fill="currentColor" stroke="none" />' +
+                    '</svg>';
+                emojiToggle.setAttribute('aria-label', 'Insert emoji');
+                emojiToggle.setAttribute('aria-haspopup', 'dialog');
+                emojiToggle.setAttribute('aria-controls', 'emoji-picker');
+                emojiToggle.setAttribute('aria-expanded', 'false');
+                var emojiSelection;
+                var parentOrigin;
+                var editor = new window.plutoMarkdownEditor({
+                    el: editorElement,
+                    height: '100%',
+                    minHeight: '0px',
+                    initialEditType: 'wysiwyg',
+                    hideModeSwitch: true,
+                    previewStyle: 'tab',
+                    usageStatistics: false,
+                    autofocus: false,
+                    toolbarItems: [
+                        ['heading', 'bold', 'italic', 'code', 'codeblock'],
+                        ['ul', 'ol', 'link', { name: 'emoji', tooltip: 'Insert emoji', el: emojiToggle }]
+                    ],
+                    events: {
+                        change: function () {
+                            send('change', { value: editor.getMarkdown() });
+                        }
+                    }
+                });
+
+                function closeEmojiPicker(returnFocus) {
+                    emojiPicker.hidden = true;
+                    emojiToggle.setAttribute('aria-expanded', 'false');
+                    if (returnFocus && !emojiToggle.disabled) {
+                        emojiToggle.focus();
+                    }
+                }
+
+                [
+                    ['😀', 'Grinning face'],
+                    ['😊', 'Smiling face'],
+                    ['👍', 'Thumbs up'],
+                    ['👎', 'Thumbs down'],
+                    ['✅', 'Check mark'],
+                    ['❌', 'Cross mark'],
+                    ['⚠️', 'Warning'],
+                    ['ℹ️', 'Information'],
+                    ['💡', 'Idea'],
+                    ['🔍', 'Search'],
+                    ['🛠️', 'Tools'],
+                    ['🤖', 'Robot'],
+                    ['📋', 'Clipboard'],
+                    ['📝', 'Memo'],
+                    ['📧', 'Email'],
+                    ['🔒', 'Locked'],
+                    ['🎯', 'Target'],
+                    ['🚀', 'Rocket']
+                ].forEach(function (emoji) {
+                    var choice = document.createElement('button');
+                    choice.type = 'button';
+                    choice.textContent = emoji[0];
+                    choice.setAttribute('aria-label', emoji[1]);
+                    choice.title = emoji[1];
+                    choice.addEventListener('click', function () {
+                        if (emojiToggle.disabled || emojiPicker.hidden) {
+                            return;
+                        }
+                        editor.setSelection(emojiSelection[0], emojiSelection[1]);
+                        editor.insertText(emoji[0]);
+                        closeEmojiPicker(false);
+                        editor.focus();
+                    });
+                    emojiPicker.appendChild(choice);
+                });
+
+                emojiToggle.addEventListener('mousedown', function (event) {
+                    event.preventDefault();
+                });
+                emojiToggle.addEventListener('click', function () {
+                    if (emojiToggle.disabled) {
+                        return;
+                    }
+                    if (!emojiPicker.hidden) {
+                        closeEmojiPicker(true);
+                        return;
+                    }
+                    emojiSelection = editor.getSelection();
+                    emojiPicker.hidden = false;
+                    emojiToggle.setAttribute('aria-expanded', 'true');
+                    emojiPicker.querySelector('button').focus();
+                });
+                document.addEventListener('keydown', function (event) {
+                    if (event.key === 'Escape' && !emojiPicker.hidden) {
+                        event.preventDefault();
+                        closeEmojiPicker(true);
+                    }
+                });
+                document.addEventListener('mousedown', function (event) {
+                    if (!emojiPicker.contains(event.target) && !emojiToggle.contains(event.target)) {
+                        closeEmojiPicker(false);
+                    }
+                });
+                emojiPicker.addEventListener('focusout', function (event) {
+                    if (!emojiPicker.contains(event.relatedTarget)) {
+                        closeEmojiPicker(false);
+                    }
+                });
+
+                modeToggle.addEventListener('click', function () {
+                    if (modeToggle.disabled) {
+                        return;
+                    }
+                    closeEmojiPicker(false);
+                    var mode = editor.isMarkdownMode() ? 'wysiwyg' : 'markdown';
+                    editor.changeMode(mode, true);
+                    var label = editor.isMarkdownMode() ? 'Visual' : 'Markdown';
+                    modeToggle.textContent = label;
+                    modeToggle.setAttribute('aria-label', 'Switch to ' + label);
+                });
+
+                function send(type, payload) {
+                    window.parent.postMessage(
+                        {
+                            channel: channel,
+                            type: type,
+                            payload: payload || {}
+                        },
+                        parentOrigin || '*'
+                    );
+                }
+
+                window.addEventListener('message', function (event) {
+                    if (event.source !== window.parent || !event.data || event.data.channel !== channel) {
+                        return;
+                    }
+                    parentOrigin = event.data.parentOrigin || parentOrigin;
+                    if (event.data.type === 'initialize' || event.data.type === 'setValue') {
+                        var value = event.data.payload.value || '';
+                        if (editor.getMarkdown() !== value) {
+                            closeEmojiPicker(false);
+                            editor.setMarkdown(value, false);
+                        }
+                    }
+                    if (event.data.type === 'setDisabled') {
+                        var disabled = event.data.payload.disabled === true;
+                        editorElement.classList.toggle('is-disabled', disabled);
+                        modeToggle.disabled = disabled;
+                        emojiToggle.disabled = disabled;
+                        if (disabled) {
+                            closeEmojiPicker(false);
+                        }
+                    }
+                    if (event.data.type === 'focus') {
+                        editor.focus();
+                    }
+                });
+
+                send('ready');
+            })();
+        </script>
+    </body>
+</html>

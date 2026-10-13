@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>VerifiedAt__c</fullName>
+    <description>When Verify last confirmed that the Named Credential signs in as the selected user and that user can run Core&apos;s work. Cleared when the user or credential changes.</description>
+    <inlineHelpText>Read-only. Set by Verify. Blank means this identity has not passed Verify since its user or Named Credential last changed. See Verification Result for why.</inlineHelpText>
+    <label>Verified At</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

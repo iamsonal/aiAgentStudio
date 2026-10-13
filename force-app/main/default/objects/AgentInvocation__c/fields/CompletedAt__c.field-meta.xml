@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CompletedAt__c</fullName>
+    <description>Time when Core classified and recorded the invocation outcome.</description>
+    <inlineHelpText>Time the provider or tool invocation completed or failed.</inlineHelpText>
+    <label>Completed At</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

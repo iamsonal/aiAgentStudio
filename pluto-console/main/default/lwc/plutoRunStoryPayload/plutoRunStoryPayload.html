@@ -1,0 +1,46 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <section class="payload" aria-label={label}>
+        <div class="payload-head">
+            <h4 class="payload-label">{label}</h4>
+            <template lwc:if={hasValue}>
+                <lightning-button-icon
+                    icon-name={copyIcon}
+                    variant="bare"
+                    size="small"
+                    alternative-text={copyText}
+                    title={copyText}
+                    onclick={handleCopy}></lightning-button-icon>
+            </template>
+        </div>
+        <template lwc:if={copyFailed}>
+            <p class="payload-copy-error" role="status">{copyText}</p>
+        </template>
+        <template lwc:if={hasValue}>
+            <pre
+                class="json"
+                tabindex="0"><template for:each={highlighted.tokens} for:item="token"><span key={token.key} class={token.cls}>{token.value}</span></template></pre>
+        </template>
+        <template lwc:else>
+            <p class="payload-empty">{emptyText}</p>
+        </template>
+        <template lwc:if={hasSensitive}>
+            <p class="payload-note">
+                <lightning-icon icon-name="utility:lock" size="xx-small" class="payload-note-icon"></lightning-icon>
+                Highlighted values are tokens that stand in for sensitive data. The model only ever gets the token, never the real value.
+            </p>
+        </template>
+    </section>
+</template>

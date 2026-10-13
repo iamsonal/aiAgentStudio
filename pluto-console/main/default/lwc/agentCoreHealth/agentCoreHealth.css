@@ -1,0 +1,275 @@
+/*
+ * This file is part of Pluto. It is licensed under the GNU Affero General
+ * Public License, version 3 only. See the LICENSE file at the root of this
+ * repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+ *
+ * The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+ * uses only Pluto's public interface stay under its own license.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * Copyright (c) 2026 Sonal
+ */
+
+:host {
+    --tone-info: #0176d3;
+    --tone-info-bg: #eef4ff;
+    --tone-warning: #a96404;
+    --tone-warning-bg: #fef7ec;
+    --tone-error: #ba0517;
+    --tone-error-bg: #fef1f1;
+    --tone-success: #2e844a;
+    --tone-success-bg: #f0f8f3;
+    --line: #e5e5e5;
+    --muted: #5c5c5c;
+    display: block;
+}
+
+.card-title {
+    font-weight: 700;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.checked {
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+.body {
+    position: relative;
+    padding: 0 1rem;
+}
+
+.loading {
+    position: relative;
+    height: 6rem;
+}
+
+.alert {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left;
+    margin-bottom: 0.75rem;
+    border-radius: 0.25rem;
+}
+
+/* ------------------------------------------------------------ verdict */
+
+.verdict {
+    --tone: var(--tone-success);
+    --tone-bg: var(--tone-success-bg);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--tone);
+    border-radius: 0.25rem;
+    background: var(--tone-bg);
+    margin-bottom: 1rem;
+}
+
+.verdict_warning {
+    --tone: var(--tone-warning);
+    --tone-bg: var(--tone-warning-bg);
+}
+
+.verdict_error {
+    --tone: var(--tone-error);
+    --tone-bg: var(--tone-error-bg);
+}
+
+.verdict-icon {
+    --slds-c-icon-color-foreground-default: var(--tone);
+}
+
+.verdict-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--tone);
+}
+
+.verdict-scope {
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+/* ------------------------------------------------------------ tiles */
+
+.tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.tile {
+    --tone: var(--muted);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 0.25rem;
+    min-height: 4.25rem;
+}
+
+.tile_warning {
+    --tone: var(--tone-warning);
+    border-color: #f2c78a;
+    background: var(--tone-warning-bg);
+}
+
+.tile_error {
+    --tone: var(--tone-error);
+    border-color: #f3b4b4;
+    background: var(--tone-error-bg);
+}
+
+.tile_info {
+    --tone: var(--tone-info);
+    border-color: #b6d4f5;
+    background: var(--tone-info-bg);
+}
+
+.tile-button {
+    all: unset;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    position: absolute;
+    inset: 0;
+    padding: 0.625rem 0.75rem;
+    border-radius: 0.25rem;
+}
+
+.tile-button:hover .tile-label {
+    text-decoration: underline;
+}
+
+.tile-button:focus-visible {
+    outline: 2px solid var(--tone-info);
+    outline-offset: 2px;
+}
+
+.tile-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--tone);
+    font-variant-numeric: tabular-nums;
+}
+
+.tile-label {
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+/* ------------------------------------------------------------ findings */
+
+.section-title {
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.findings {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.finding {
+    --tone: var(--tone-warning);
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--tone);
+    border-radius: 0.25rem;
+}
+
+.finding_error {
+    --tone: var(--tone-error);
+}
+
+.finding_info {
+    --tone: var(--tone-info);
+}
+
+.finding-icon {
+    --slds-c-icon-color-foreground-default: var(--tone);
+    margin-top: 0.125rem;
+}
+
+.finding-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.finding-title {
+    font-weight: 700;
+}
+
+.finding-action {
+    margin-top: 0.125rem;
+}
+
+.finding-code {
+    margin-top: 0.25rem;
+    color: var(--muted);
+    font-family: 'Salesforce Mono', Menlo, Consolas, monospace;
+    font-size: 0.6875rem;
+}
+
+.finding-button {
+    flex: none;
+    align-self: center;
+}
+
+.all-clear {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--tone-success);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.all-clear-icon {
+    --slds-c-icon-color-foreground-default: var(--tone-success);
+}
+
+/* ------------------------------------------------------------ footer */
+
+.footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.footer-label {
+    margin-right: auto;
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+@media (max-width: 30em) {
+    .finding {
+        flex-wrap: wrap;
+    }
+
+    .finding-button {
+        align-self: flex-start;
+        margin-left: 1.625rem;
+    }
+}

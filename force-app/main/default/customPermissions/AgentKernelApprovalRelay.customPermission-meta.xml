@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Authorizes an approval channel integration user to deliver a decision on behalf of an eligible approver. Core refuses a relay from a run&apos;s execution user.</description>
+    <isLicensed>false</isLicensed>
+    <label>Agent Kernel Approval Relay</label>
+</CustomPermission>

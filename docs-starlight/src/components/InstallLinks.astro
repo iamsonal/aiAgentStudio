@@ -1,0 +1,37 @@
+---
+// Install links for each unlocked package, built from src/data/packages.json.
+// To release a version, put each package's 04t version Id there.
+import data from '../data/packages.json';
+
+const link = (host: string, id: string) => `https://${host}/packaging/installPackage.apexp?p0=${id}`;
+---
+
+<table>
+  <thead>
+    <tr>
+      <th>Package</th>
+      <th>What it does</th>
+      <th>Production</th>
+      <th>Sandbox</th>
+    </tr>
+  </thead>
+  <tbody>
+    {
+      data.packages.map((p) => (
+        <tr>
+          <td>{p.name}</td>
+          <td>{p.purpose}</td>
+          {p.versionId ? (
+            <>
+              <td><a href={link('login.salesforce.com', p.versionId)}>Install</a></td>
+              <td><a href={link('test.salesforce.com', p.versionId)}>Install</a></td>
+            </>
+          ) : (
+            <td colspan="2">Not released yet</td>
+          )}
+        </tr>
+      ))
+    }
+  </tbody>
+</table>
+{data.version && <p>Version {data.version}.</p>}

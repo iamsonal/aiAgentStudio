@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ApproverQueue__c</fullName>
+    <description>API name of the queue that owns this tool&apos;s approvals when Approver Type is Queue. With Anchor Record Owner, the fallback queue used when the owner cannot decide or the run has no anchor. The queue must support Agent Approval records.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Queue: this queue approves every call. Anchor Record Owner: optional backup; calls go here when the owner cannot decide or the run has no record, instead of pausing. Members need Agent Kernel Human Decision, and the queue must support Agent Approval.</inlineHelpText>
+    <label>Approver Queue</label>
+    <length>80</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

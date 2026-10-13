@@ -1,0 +1,138 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <article class={articleClass}>
+        <template if:false={bare}>
+            <div class="slds-card__header">
+                <h2 class="slds-card__header-title">Tool Setup</h2>
+            </div>
+        </template>
+        <div class={bodyClass}>
+            <template if:true={isLoading}>
+                <lightning-spinner alternative-text="Loading tool" size="small"></lightning-spinner>
+            </template>
+
+            <div class="slds-grid slds-gutters slds-wrap">
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                    <template if:true={readOnly}>
+                        <div class="slds-form-element slds-form-element_readonly">
+                            <span class="slds-form-element__label">Implementation Type</span>
+                            <div class="slds-form-element__control">
+                                <div class="slds-form-element__static" data-implementation-type-label>{implementationTypeLabel}</div>
+                            </div>
+                        </div>
+                    </template>
+                    <template if:false={readOnly}>
+                        <lightning-combobox
+                            label="Implementation Type"
+                            field-level-help="Standard tools read and change records. Flow runs an autolaunched Flow. Apex runs code, such as an API call."
+                            placeholder="Choose how the tool runs"
+                            options={implementationTypeOptions}
+                            value={implementationType}
+                            required
+                            data-implementation-type
+                            onchange={handleImplementationTypeChange}></lightning-combobox>
+                    </template>
+                </div>
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                    <template if:true={readOnly}>
+                        <div class="slds-form-element slds-form-element_readonly">
+                            <span class="slds-form-element__label">Tool Type</span>
+                            <div class="slds-form-element__control">
+                                <div class="slds-form-element__static" data-tool-type-label>{toolTypeLabel}</div>
+                            </div>
+                        </div>
+                    </template>
+                    <template if:false={readOnly}>
+                        <lightning-combobox
+                            label="Tool Type"
+                            placeholder={toolTypePlaceholder}
+                            options={toolTypeOptions}
+                            value={toolType}
+                            disabled={toolTypeDisabled}
+                            required
+                            data-tool-type
+                            onchange={handleToolTypeChange}></lightning-combobox>
+                    </template>
+                    <template if:true={toolTypeError}>
+                        <p class="slds-text-color_error slds-text-body_small" data-tool-type-error>{toolTypeError}</p>
+                    </template>
+                </div>
+            </div>
+
+            <template if:true={hasToolType}>
+                <div class={toolSectionClass}>
+                    <template if:true={firstCheck}>
+                        <lightning-spinner alternative-text="Loading the tool type" size="small"></lightning-spinner>
+                    </template>
+                    <c-tool-settings-form
+                        settings={declaredSettings}
+                        values={settingsWithoutOverrides}
+                        tool-type={toolType}
+                        undeclared={undeclaredSettings}
+                        read-only={readOnly}
+                        show-required={showRequired}
+                        onsettingchange={handleSettingChange}
+                        onsettingschange={handleSettingsReplace}></c-tool-settings-form>
+
+                    <template if:true={hasToolProblems}>
+                        <div class="slds-notify slds-notify_alert slds-alert_error slds-m-top_small" role="alert" data-tool-problems>
+                            <ul class="slds-list_dotted slds-text-align_left">
+                                <template for:each={toolProblems} for:item="problem">
+                                    <li key={problem}>{problem}</li>
+                                </template>
+                            </ul>
+                        </div>
+                    </template>
+
+                    <div class="slds-is-relative model-section">
+                        <template if:true={showCheckingSpinner}>
+                            <lightning-spinner alternative-text="Checking what the model sees" size="small" data-checking></lightning-spinner>
+                        </template>
+                        <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-end slds-m-top_medium slds-m-bottom_x-small">
+                            <h3 class="slds-text-heading_small">What the model sees</h3>
+                            <lightning-button-group>
+                                <template if:true={schemaJson}>
+                                    <lightning-button label="Show JSON" icon-name="utility:preview" data-show-json onclick={handleShowJson}></lightning-button>
+                                </template>
+                                <template if:true={showEditInputs}>
+                                    <lightning-button
+                                        label="Edit as JSON"
+                                        icon-name="utility:snippet"
+                                        data-edit-inputs
+                                        onclick={handleEditInputs}></lightning-button>
+                                </template>
+                            </lightning-button-group>
+                        </div>
+                        <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">{inputsHelp}</p>
+                        <template if:true={showInputsBuilder}>
+                            <c-tool-inputs-builder value={inputSchema} onschemachange={handleInputsBuilt}></c-tool-inputs-builder>
+                        </template>
+                        <template if:true={showWaitingNote}>
+                            <p class="slds-text-body_small slds-text-color_weak" data-waiting-note>{waitingNote}</p>
+                        </template>
+                        <template if:true={showBuiltInputs}>
+                            <c-tool-inputs-list
+                                inputs={inputs}
+                                overrides={overrides}
+                                read-only={readOnly}
+                                problems-by-path={problemsByPath}
+                                onoverrideschange={handleOverridesChange}></c-tool-inputs-list>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </article>
+</template>

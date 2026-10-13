@@ -1,0 +1,19 @@
+---
+// Starlight's footer, with the license line added to every page.
+import Default from '@astrojs/starlight/components/Footer.astro';
+
+const licenseUrl = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/reference/license/`;
+---
+
+<Default><slot /></Default>
+<p class="license">
+  Pluto is licensed under the <a href={licenseUrl}>GNU Affero General Public License, version 3 only</a>.
+</p>
+
+<style>
+  .license {
+    margin-top: 1rem;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+</style>

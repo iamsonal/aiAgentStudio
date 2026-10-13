@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>OpenKey__c</fullName>
+    <description>Code and subject while the issue is open; blank once it is closed, so a later failure opens a new issue.</description>
+    <caseSensitive>true</caseSensitive>
+    <externalId>true</externalId>
+    <unique>true</unique>
+    <inlineHelpText>Read-only. Pluto Core uses this to group repeats of an open issue.</inlineHelpText>
+    <label>Open Key</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+</CustomField>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AppliedInputPricePerMillion__c</fullName>
+    <description>Input token price per million used for this invocation&apos;s estimated USD cost.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Input token price per million used for this invocation&apos;s estimated USD cost.</inlineHelpText>
+    <label>Applied Input Price per Million</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>6</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>FieldSetName__c</fullName>
+    <description>API name of the Field Set on the selected object.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Select the Field Set on the chosen object. Its fields supply context to the model, subject to the run&apos;s access checks. Create or update the Field Set in Object Manager before selecting it.</inlineHelpText>
+    <label>Field Set API Name</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>AgentKernelApprovalRelay</name>
+    </customPermissions>
+    <description>Lets an approval channel integration user deliver a decision made in another system on behalf of an eligible approver. Never assign to a person or to an execution user.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Agent Kernel Approval Relay</label>
+</PermissionSet>

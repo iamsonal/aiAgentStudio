@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CloseReason__c</fullName>
+    <description>Why the issue was dismissed, or that Core saw the subject recover.</description>
+    <inlineHelpText>Required when you dismiss an issue.</inlineHelpText>
+    <label>Close Reason</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+</CustomField>

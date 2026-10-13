@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MaxToolCalls__c</fullName>
+    <defaultValue>15</defaultValue>
+    <description>Maximum tool invocations allowed for one run, or for each reply of a conversational agent.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Maximum tool calls for one run. For an agent with Wait for Reply, the limit applies to each reply. Use a whole number from 0 to 9,999; 0 prevents tool execution. Several calls in one model response count separately. A step that would exceed the budget pauses the run for operator review.</inlineHelpText>
+    <label>Max Tool Calls</label>
+    <precision>4</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

@@ -1,259 +1,158 @@
 ---
 title: Pluto
+description: Pluto runs AI agents inside Salesforce on standard licenses, with any model provider.
 template: splash
-description: A governed AI runtime for Salesforce that separates strategy, channels, trust, and extensibility into one operable system.
+hero:
+  tagline: AI agents that run inside your Salesforce org, on the licenses you already have, with the model provider you choose. Every step is recorded, and a person approves what matters.
+  image:
+    html: |
+      <svg class="ph" viewBox="0 0 320 260" width="100%" role="img" aria-label="Pluto floats in space and watches its moon orbit.">
+      <style>
+      .ph .ox,.ph .oy,.ph .os,.ph .fr,.ph .bk,.ph .ex,.ph .ey,.ph .px,.ph .py{animation-duration:9s;animation-timing-function:ease-in-out;animation-iteration-count:infinite;animation-direction:alternate}
+      .ph .oy,.ph .os,.ph .fr,.ph .bk,.ph .ey,.ph .py{animation-delay:-4.5s}
+      .ph .ox{animation-name:ph-ox}.ph .oy{animation-name:ph-oy}.ph .os{animation-name:ph-os}
+      .ph .fr{animation-name:ph-fr;animation-timing-function:linear}.ph .bk{animation-name:ph-bk;animation-timing-function:linear}
+      .ph .ex{animation-name:ph-ex}.ph .ey{animation-name:ph-ey}.ph .px{animation-name:ph-px}.ph .py{animation-name:ph-py}
+      @keyframes ph-ox{from{transform:translateX(-112px)}to{transform:translateX(112px)}}
+      @keyframes ph-oy{from{transform:translateY(-30px)}to{transform:translateY(30px)}}
+      @keyframes ph-os{from{transform:scale(.7)}to{transform:scale(1.12)}}
+      @keyframes ph-fr{0%,50%{opacity:0}50.1%,100%{opacity:1}}
+      @keyframes ph-bk{0%,50%{opacity:1}50.1%,100%{opacity:0}}
+      @keyframes ph-ex{from{transform:translateX(-9px)}to{transform:translateX(9px)}}
+      @keyframes ph-ey{from{transform:translateY(-6px)}to{transform:translateY(5px)}}
+      @keyframes ph-px{from{transform:translateX(3px)}to{transform:translateX(-3px)}}
+      @keyframes ph-py{from{transform:translateY(1px)}to{transform:translateY(-1px)}}
+      .ph .eye{transform-box:fill-box;transform-origin:center;animation:ph-blink 5.3s infinite}
+      @keyframes ph-blink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.1)}}
+      .ph .tw{animation:ph-tw ease-in-out infinite}
+      @keyframes ph-tw{0%,100%{opacity:.35}50%{opacity:1}}
+      .ph .ss{opacity:0;animation:ph-ss 11s linear infinite}
+      @keyframes ph-ss{0%,84%{opacity:0;transform:none}86%{opacity:1}93%,100%{opacity:0;transform:translate(-130px,55px)}}
+      @media (prefers-reduced-motion:reduce){.ph *{animation-play-state:paused!important}.ph .ss{display:none}}
+      </style>
+      <g fill="var(--sl-color-gray-3)">
+      <circle class="tw" style="animation-duration:3.1s;animation-delay:-0s" cx="24" cy="30" r="2.1"/>
+      <circle class="tw" style="animation-duration:4.7s;animation-delay:-1s" cx="70" cy="70" r="1.7"/>
+      <circle class="tw" style="animation-duration:5.9s;animation-delay:-2s" cx="290" cy="40" r="2.3"/>
+      <circle class="tw" style="animation-duration:3.7s;animation-delay:-0.5s" cx="250" cy="20" r="1.6"/>
+      <circle class="tw" style="animation-duration:6.3s;animation-delay:-3s" cx="300" cy="210" r="1.9"/>
+      <circle class="tw" style="animation-duration:4.1s;animation-delay:-2.2s" cx="36" cy="220" r="2.2"/>
+      <circle class="tw" style="animation-duration:5.3s;animation-delay:-4s" cx="110" cy="18" r="1.7"/>
+      <circle class="tw" style="animation-duration:3.3s;animation-delay:-1.4s" cx="200" cy="245" r="1.8"/>
+      <circle class="tw" style="animation-duration:7.1s;animation-delay:-0.8s" cx="12" cy="130" r="1.6"/>
+      <circle class="tw" style="animation-duration:4.9s;animation-delay:-3.3s" cx="310" cy="120" r="1.7"/>
+      <circle class="tw" style="animation-duration:5.7s;animation-delay:-2.6s" cx="80" cy="250" r="1.5"/>
+      <circle class="tw" style="animation-duration:3.9s;animation-delay:-0.2s" cx="196" cy="12" r="2.0"/>
+      </g>
+      <line class="ss" x1="280" y1="22" x2="300" y2="14" stroke="var(--sl-color-gray-2)" stroke-width="2" stroke-linecap="round"/>
+      <g transform="translate(160,130) rotate(-12)">
+      <ellipse rx="112" ry="30" fill="none" stroke="var(--sl-color-gray-4)" stroke-dasharray="2 6"/>
+      <g class="ox"><g class="oy"><g class="bk"><g class="os"><circle r="13" fill="#F2B233"/></g></g></g></g>
+      </g>
+      <g class="px"><g class="py">
+      <circle cx="160" cy="130" r="58" fill="#0176D3"/>
+      <path d="M178 152c-4-6-14-3-12 5 1 6 12 13 12 13s11-7 12-13c2-8-8-11-12-5z" fill="#fff" opacity=".22"/>
+      <g class="ex"><g class="ey"><rect class="eye" x="134" y="106" width="15" height="30" rx="7.5" fill="#fff"/><rect class="eye" x="168" y="106" width="15" height="30" rx="7.5" fill="#fff"/></g></g>
+      </g></g>
+      <g transform="translate(160,130) rotate(-12)">
+      <g class="ox"><g class="oy"><g class="fr"><g class="os"><circle r="13" fill="#F2B233"/></g></g></g></g>
+      </g>
+      </svg>
+  actions:
+    - text: Install Pluto
+      link: /start/install/
+      icon: right-arrow
+    - text: Build your first agent
+      link: /start/first-agent/
+      variant: secondary
+    - text: View on GitHub
+      link: https://github.com/iamsonal/aiAgentStudio
+      icon: external
+      variant: minimal
 ---
 
-import { Aside, Card, CardGrid, LinkCard, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Card, CardGrid } from '@astrojs/starlight/components';
+import PageCard from '../../components/PageCard.astro';
 
-<section class="loom-hero">
-  <div class="loom-hero__copy">
-    <div class="hero-kicker">Built for real Salesforce runtime constraints</div>
-    <h2 class="loom-hero__title">One runtime that holds the whole AI system together.</h2>
-    <div class="loom-hero__lead">
-      Pluto is a Salesforce-native runtime for AI agents. It brings together prompts, tools,
-      context, channels, memory, and governance so the system behaves like a real product
-      runtime, not just a model call with extra code around it.
-    </div>
+## What Pluto does
 
-    <div class="button-row">
-      <a class="loom-button loom-button--primary" href="getting-started/">Start Building</a>
-      <a class="loom-button loom-button--secondary" href="https://github.com/iamsonal/aiAgentStudio">View the GitHub repository</a>
-    </div>
-
-    <div class="loom-hero__subactions">
-      <span>Salesforce-native</span>
-      <span>Governed by design</span>
-      <span>Built for production</span>
-    </div>
-  </div>
-</section>
-
-<Aside type="caution" title="Public Docs Scope">
-These docs focus on the core runtime in `force-app`. The repository also contains addon packages and
-internal implementation documents, but those internals are intentionally not described in detail
-here.
-</Aside>
-
-## Why "Pluto"
-
-Why Pluto? Because the point of this framework is not to be the loudest thing in the system. Its
-job is to hold the system together.
-
-Pluto felt like the right name because it is compact, memorable, and a little understated, but it
-still has gravity. That is exactly what this runtime is meant to do inside Salesforce. It pulls
-prompts, tools, channels, memory, governance, and execution into one operating model that can hold
-together in production.
-
-And honestly, the attitude fits too: whether people agree on the category or not, Pluto still does
-the work.
-
-## Why This Exists
-
-Many Salesforce AI projects start as one prompt, one model call, and one UI surface. That works for
-early demos, but it breaks down when you need:
-
-- multiple entry points such as chat, email, APIs, and automation
-- durable conversation or thread continuity
-- governed tool execution and human review
-- platform-safe async behavior under Salesforce transaction limits
-- clear auditability for support, compliance, and operational debugging
-
-Pluto exists to solve that larger problem. It gives you an operating model, not just an
-LLM integration.
-
-## What Makes It Different
-
-<p class="section-lead">
-The platform is opinionated in a useful way. It separates concerns that many first-generation AI
-implementations blur together, which makes the runtime easier to operate, extend, and trust.
-</p>
+An agent reads records, calls the tools you give it, and writes an answer. It runs as Apex in your org. Your data stays in Salesforce except for what the agent sends to the model.
 
 <CardGrid>
-  <Card title="Runtime Strategy" icon="rocket">
-    The framework asks what kind of work this is. `Conversational` runtimes handle ongoing
-    interaction. `Direct` runtimes handle bounded work such as classification, enrichment, and
-    controlled automation.
+  <Card title="Standard licenses" icon="star">
+    Pluto runs on the Salesforce licenses your users already have. It needs no paid AI add-on and no extra per-conversation fee. You pay your model provider for the tokens you use.
   </Card>
-  <Card title="Channel-Aware Delivery" icon="email">
-    Runtime strategy and interaction channel stay separate, so the same framework can work across
-    chat, email, API, and provider-backed messaging without collapsing into brittle channel-specific
-    agent variants.
+  <Card title="Any model provider" icon="random">
+    Connect OpenAI, Azure OpenAI, or any endpoint that serves the OpenAI Responses API. For another provider, a developer writes one Apex class.
   </Card>
-  <Card title="Governed by Design" icon="approve-check-circle">
-    Trust layers, approval controls, user-mode access, and durable audit records are part of the
-    runtime itself, not post-hoc process wrapped around a prompt.
+  <Card title="Approvals before actions" icon="approve-check">
+    Make a person approve a tool call before it runs. Send it to a user, a queue, the record owner, or the requester's manager. A policy can ask only for large refunds and let small ones through. The agent never approves its own work.
   </Card>
-  <Card title="Composition That Scales" icon="puzzle">
-    Pipelines and multi-agent flows are treated as explicit composition patterns, so the framework
-    can coordinate specialist agents step by step instead of forcing every workflow into one
-    oversized runtime.
+  <Card title="A record of every step" icon="magnifier">
+    Each run stores every model call, tool call, approval, and decision. The run story in Pluto Console shows who started it, what the agent saw, what it did, and who approved it.
+  </Card>
+  <Card title="Runs that recover" icon="setting">
+    A schedule checks every 10 minutes for runs that stopped and continues them. A tool call that changed an outside system is never repeated blindly. An admin can rescue or cancel any run without code.
+  </Card>
+  <Card title="Sensitive data stays out of the model" icon="warning">
+    Emails, phone numbers, card numbers, US SSNs, IBANs, and classified fields become tokens before the model sees them. Only tools you allow get the real values back.
+  </Card>
+  <Card title="Tools without code" icon="puzzle">
+    Give an agent tools to query records with your own SOQL, create or update records with fields you allow, post to Chatter, or run a Flow. Developers add Apex tools through a published contract.
+  </Card>
+  <Card title="Spending limits per run" icon="list-format">
+    Each agent caps model calls, tool calls, and tokens per run. Set token prices on the model, and each call records its estimated cost.
   </Card>
 </CardGrid>
 
-## What It Models
+## Why Pluto
 
-<p class="section-lead">
-The fastest way to understand the framework is to understand the boundaries it models as separate
-things.
-</p>
+1. You keep your current licenses. An agent runs as Apex in your org, with no AI add-on to buy.
+2. You choose the model and can change it later. Agents point to an Agent Model record. Switching providers changes that record, not the agents.
+3. You can explain every result. When someone asks why the agent changed a record, the run story answers with the model call, the tool call, and the approval behind it.
+4. Admins build with records and Flows. An agent is an Agent Definition with tools attached. You start it from a Flow action, so record-triggered, scheduled, and screen Flows all work.
+5. You can read and change the source. Pluto is free under the AGPL. Your own tools, model providers, and policies can stay private.
 
+## What you can build
+
+| Use an agent to | For example |
+| --- | --- |
+| Sort or summarize work as it arrives | Triage each new Case: set its Priority and post a short note to its Chatter feed. |
+| Draft text a person checks before it goes out | Draft a reply to a customer for the case owner to review. |
+| Change records only after someone agrees | Update an Opportunity stage only after the account owner approves. |
+| Work through many records without a person | Review every open Case each night and flag the ones that need attention. |
+| Help a user on a record page | A screen Flow on the Case page where the user asks questions over several messages. |
+| Wait for a slow outside system | Start a credit check, wait hours for the answer, then continue the run. |
+
+## What you install
+
+<div class="three-cards">
 <CardGrid>
-  <Card title="Agent Definition" icon="information">
-    `AIAgentDefinition__c` describes what an agent is: prompts, model configuration, runtime style,
-    tools, trust controls, and behavior settings.
+  <Card title="Pluto Core" icon="rocket">
+    Required. Runs agents: model calls, tools, approvals, recovery, and the record of each run.
   </Card>
-  <Card title="Execution" icon="rocket">
-    `AgentExecution__c` is a unit of runtime work. It tracks lifecycle state, resolved strategy,
-    channel, and turn coordination.
+  <Card title="Pluto Model Adapters" icon="random">
+    A ready-made connection to OpenAI and other endpoints that serve the OpenAI Responses API. Skip it only if you write your own model connection.
   </Card>
-  <Card title="Session" icon="comment-alt">
-    `InteractionSession__c` is the continuity anchor for a conversation, thread, or longer-lived
-    interaction.
-  </Card>
-  <Card title="Message" icon="email">
-    `InteractionMessage__c` captures transport-level inbound and outbound messages.
-  </Card>
-  <Card title="Execution Step" icon="list-format">
-    `ExecutionStep__c` is the detailed audit trail of what the runtime actually did while handling a
-    request.
+  <Card title="Pluto Console" icon="laptop">
+    Optional, and recommended. Edit agents and tools, follow a run step by step, and rescue runs that stopped.
   </Card>
 </CardGrid>
+</div>
 
-That separation is one of the framework's biggest strengths. A conversation is not the same thing as
-a runtime work item. A transport message is not the same thing as an execution step. Once those
-boundaries are clear, the system becomes much easier to reason about.
+Pluto Core works on its own. The other two packages only use Core's published extension points.
 
-## What You Can Build
-
-<p class="section-lead">
-This is where the framework should feel less abstract and more like a product foundation. The same
-runtime can support user-facing assistants, bounded AI workflow steps, and shared internal AI
-platforms.
-</p>
-
-<Tabs>
-  <TabItem label="Service">
-
-Build case support assistants that can inspect context, draft responses, suggest next actions, and
-update records with confirmation or approval controls.
-
-This is one of the strongest first product shapes because the value is visible, the human stays in
-the loop, and the runtime trace is easy to inspect in production.
-
-  </TabItem>
-  <TabItem label="Sales">
-
-Build seller copilots that help with account research, opportunity inspection, meeting prep,
-activity capture, and guided follow-up workflows.
-
-This is the right shape when you want a copilot that feels embedded in the CRM, not bolted on next
-to it.
-
-  </TabItem>
-  <TabItem label="Automation">
-
-Build direct runtimes that classify records, enrich data, summarize activity, route work, or run
-bounded AI tasks from Flow or API triggers.
-
-This is a strong fit when the business need is not "give me a chatbot," but "add a reliable AI step
-to a governed workflow."
-
-  </TabItem>
-  <TabItem label="Platform">
-
-Build an internal AI foundation where multiple teams can configure agents, add capabilities, plug in
-new providers, and reuse the same runtime, routing, and governance model.
-
-This is where the story becomes most powerful: one governed runtime, many business-facing AI
-experiences.
-
-  </TabItem>
-</Tabs>
-
-## Core Capabilities
+## Get started
 
 <CardGrid>
-  <Card title="Conversational Agents" icon="comment">
-    Build assistants that preserve continuity across turns, sessions, and channel-aware reply flows.
-  </Card>
-  <Card title="Direct Agents" icon="rocket">
-    Run bounded work units for classification, enrichment, automation, routing, or structured
-    decision support.
-  </Card>
-  <Card title="Metadata-Driven Routing" icon="random">
-    Use metadata to decide which agent owns a request, how a channel behaves, and how delivery
-    should work.
-  </Card>
-  <Card title="Trust Layers" icon="approve-check-circle">
-    Combine masking, prompt safety, tool gating, and approval flows as runtime concerns rather than
-    post-hoc guardrails.
-  </Card>
-  <Card title="Observability" icon="magnifier">
-    Inspect executions, steps, messages, sessions, token usage, and outcomes with durable system
-    records.
-  </Card>
-  <Card title="Extensibility" icon="puzzle">
-    Add actions, context providers, LLM adapters, and memory strategies without throwing away the
-    core runtime model.
-  </Card>
+  <PageCard title="How a run works" href="/start/how-a-run-works/" description="The steps of a run and the states it can be in." />
+  <PageCard title="Install" href="/start/install/" description="Install the packages and turn on Core's schedules." />
+  <PageCard title="Your first agent" href="/start/first-agent/" description="Build an agent that triages new Cases, start to finish." />
+  <PageCard title="Extend Pluto" href="/extend/" description="Add your own tools, model providers, context, and policies." />
 </CardGrid>
 
-## Who This Is For
+## Official source
 
-Pluto is especially useful for teams that need more than a single chatbot or a one-off
-model integration.
+Pluto is free. The only official source is the [GitHub repository](https://github.com/iamsonal/aiAgentStudio) and the packages it publishes. Pluto is not sold on AppExchange. If you paid for a copy, or see it listed under another name, it did not come from this project.
 
-It is a strong fit when you are building:
-
-- Salesforce-native assistants that need durable continuity
-- governed business automations that must respect user permissions and approval rules
-- channel-aware agent experiences across chat, email, API, or provider-backed messaging
-- extensible agent platforms where new tools, providers, and context sources will be added over time
-- production systems where observability, auditability, and operational safety matter as much as the model itself
-
-It is a weaker fit if all you need is a single prompt, a single response, and no durable runtime or
-governance layer.
-
-## Reader Paths
-
-<Steps>
-1. **Start building**
-
-   Deploy the core package, connect a provider, create an agent, and validate your first runtime
-   path.
-
-2. **Understand the system**
-
-   Read the `Runtime Model` and `Architecture` pages to form the right mental model before diving
-   into implementation details.
-
-3. **Configure production behavior**
-
-   Use `Configuration`, `Security`, and `Standard Actions` to decide how agents should behave in a
-   governed environment.
-
-4. **Extend the framework**
-
-   Use the `Developer Guide` when configuration is no longer enough and you need custom actions,
-   context providers, or provider adapters.
-</Steps>
-
-## Go Next
-
-<CardGrid>
-  <LinkCard title="Getting Started" href="guides/getting-started/">
-    Deploy the core runtime, connect an LLM provider, create your first agent, and verify the first
-    execution flow.
-  </LinkCard>
-  <LinkCard title="Runtime Model" href="reference/runtime-model/">
-    Learn the strategy, channel, execution, session, and message concepts that define the core
-    runtime.
-  </LinkCard>
-  <LinkCard title="Configuration" href="guides/configuration/">
-    Map the runtime model to agent settings, capabilities, trust controls, and operational behavior.
-  </LinkCard>
-  <LinkCard title="Use Cases" href="guides/use-cases/">
-    See how support, sales, direct automation, and service workflows fit the runtime model.
-  </LinkCard>
-</CardGrid>
+Pluto is licensed under the [GNU Affero General Public License, version 3 only](/reference/license/), with an exception that lets your own extensions stay private. The license does not cover the Pluto name or logo.

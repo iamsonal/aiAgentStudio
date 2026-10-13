@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RecoveryCheckAt__c</fullName>
+    <description>Next time an expired lease is eligible for a bounded recovery check; may move forward while its worker is active.</description>
+    <inlineHelpText>The original lease expiry remains unchanged for audit and health.</inlineHelpText>
+    <label>Recovery Check At</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

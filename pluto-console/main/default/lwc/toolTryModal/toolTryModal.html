@@ -1,0 +1,270 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <lightning-modal-header label={headerLabel}>
+        <template lwc:if={canTry}>
+            <p class="slds-text-body_small slds-text-color_weak" data-dry-run-note>{dryRunNote}</p>
+        </template>
+    </lightning-modal-header>
+    <lightning-modal-body>
+        <template lwc:if={isLoading}>
+            <div class="loading">
+                <lightning-spinner alternative-text="Loading the tool" size="small"></lightning-spinner>
+            </div>
+        </template>
+        <template lwc:elseif={loadError}>
+            <div class="slds-notify slds-notify_alert slds-alert_error" role="alert" data-load-error>{loadError}</div>
+        </template>
+        <template lwc:elseif={cannotTry}>
+            <div class="empty" data-cannot-try>
+                <lightning-icon icon-name="utility:ban" size="small" alternative-text="Cannot try"></lightning-icon>
+                <h3 class="slds-text-heading_small slds-m-top_small">This tool can't be tried here</h3>
+                <p class="slds-m-top_x-small">{state.reason}</p>
+            </div>
+        </template>
+        <template lwc:elseif={isRunning}>
+            <div class="empty" data-running>
+                <lightning-spinner alternative-text="Running the tool" size="medium"></lightning-spinner>
+                <p class="running-text slds-text-color_weak">Running the tool. Every change is undone when it ends.</p>
+            </div>
+        </template>
+        <template lwc:elseif={showResultScreen}>
+            <div class="screen" aria-live="polite" data-result>
+                <template lwc:if={runError}>
+                    <section class="banner banner_error" role="alert" data-run-error>
+                        <span class="banner__icon banner__icon_error">
+                            <lightning-icon icon-name="utility:close" size="x-small" variant="inverse" alternative-text=""></lightning-icon>
+                        </span>
+                        <div>
+                            <h3 class="banner__title">The tool could not be tried</h3>
+                            <p class="banner__text">{runError}</p>
+                        </div>
+                    </section>
+                </template>
+                <template lwc:else>
+                    <section class={status.bannerClass} data-status>
+                        <span class={status.iconClass}>
+                            <lightning-icon icon-name={status.icon} size="x-small" variant="inverse" alternative-text=""></lightning-icon>
+                        </span>
+                        <div class="banner__body">
+                            <h3 class="banner__title">{status.label}</h3>
+                            <template lwc:if={problemText}>
+                                <p class="banner__problem" data-problem>{problemText}</p>
+                            </template>
+                            <template lwc:if={summaryText}>
+                                <p class="banner__text">{summaryText}</p>
+                            </template>
+                            <ul class="facts">
+                                <template for:each={resultFacts} for:item="fact">
+                                    <li key={fact}>{fact}</li>
+                                </template>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <template lwc:if={hasNotUndone}>
+                        <div class="slds-scoped-notification slds-theme_warning slds-m-top_small" role="alert" data-not-undone>
+                            <template for:each={result.notUndone} for:item="warning">
+                                <p key={warning} class="slds-text-body_small">{warning}</p>
+                            </template>
+                        </div>
+                    </template>
+
+                    <h3 class="section-title">What the agent gets back</h3>
+                    <template lwc:if={outputIsJson}>
+                        <c-tool-json-read-only-preview label="Output" value={result.output} height="320px"></c-tool-json-read-only-preview>
+                    </template>
+                    <template lwc:elseif={outputIsText}>
+                        <pre class="output-text">{result.output}</pre>
+                    </template>
+                    <template lwc:else>
+                        <p class="slds-text-body_small slds-text-color_weak" data-no-output>The tool returned no output.</p>
+                    </template>
+                </template>
+
+                <details class="sent">
+                    <summary>What the agent sent</summary>
+                    <pre class="output-text" data-sent>{sentText}</pre>
+                </details>
+            </div>
+        </template>
+        <template lwc:else>
+            <div class="screen">
+                <template lwc:if={showApprovalNote}>
+                    <div class="slds-scoped-notification slds-scoped-notification_light slds-m-bottom_small" role="status" data-approval-note>
+                        <p class="slds-text-body_small">In a real run this tool waits for approval. A dry run skips it, because nothing is kept.</p>
+                    </div>
+                </template>
+
+                <div class="screen__header">
+                    <div>
+                        <h3 class="slds-text-heading_small">What the agent sends</h3>
+                        <p class="slds-text-body_small slds-text-color_weak">Fill in values the way the agent would, then click Run.</p>
+                    </div>
+                    <lightning-radio-group
+                        name="input-mode"
+                        label="Input mode"
+                        variant="label-hidden"
+                        type="button"
+                        options={modeOptions}
+                        value={mode}
+                        onchange={handleModeChange}></lightning-radio-group>
+                </div>
+
+                <template lwc:if={inputError}>
+                    <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_small" role="alert" data-input-error>
+                        <div>
+                            <p>{inputError}</p>
+                            <template lwc:if={inputErrorHint}>
+                                <p class="slds-text-body_small">{inputErrorHint}</p>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <template lwc:if={isFormMode}>
+                    <template lwc:if={hasInputs}>
+                        <template for:each={sections} for:item="section">
+                            <div key={section.key} class="form-section">
+                                <template lwc:if={section.hasHeading}>
+                                    <h4 class="form-section__heading">{section.heading}</h4>
+                                    <template lwc:if={section.description}>
+                                        <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small">{section.description}</p>
+                                    </template>
+                                </template>
+                                <template for:each={section.fields} for:item="field">
+                                    <div key={field.path} class="field" data-field={field.path} data-error={field.error}>
+                                        <template lwc:if={field.isText}>
+                                            <lightning-input
+                                                type={field.inputType}
+                                                label={field.label}
+                                                field-level-help={field.help}
+                                                required={field.required}
+                                                max-length={field.maxLength}
+                                                value={field.value}
+                                                data-path={field.path}
+                                                data-kind={field.kind}
+                                                onchange={handleFieldChange}></lightning-input>
+                                        </template>
+                                        <template lwc:if={field.isNumber}>
+                                            <lightning-input
+                                                type="number"
+                                                step={field.step}
+                                                min={field.min}
+                                                max={field.max}
+                                                label={field.label}
+                                                field-level-help={field.help}
+                                                required={field.required}
+                                                value={field.value}
+                                                data-path={field.path}
+                                                data-kind={field.kind}
+                                                onchange={handleFieldChange}></lightning-input>
+                                        </template>
+                                        <template lwc:if={field.isPicklist}>
+                                            <lightning-combobox
+                                                label={field.label}
+                                                field-level-help={field.help}
+                                                required={field.required}
+                                                options={field.picklistOptions}
+                                                value={field.value}
+                                                placeholder="Choose a value"
+                                                data-path={field.path}
+                                                data-kind={field.kind}
+                                                onchange={handleFieldChange}></lightning-combobox>
+                                        </template>
+                                        <template lwc:if={field.isCheckbox}>
+                                            <lightning-input
+                                                type="checkbox"
+                                                label={field.label}
+                                                field-level-help={field.help}
+                                                checked={field.value}
+                                                data-path={field.path}
+                                                data-kind={field.kind}
+                                                onchange={handleFieldChange}></lightning-input>
+                                        </template>
+                                        <template lwc:if={field.isChoice}>
+                                            <lightning-combobox
+                                                label={field.label}
+                                                field-level-help={field.help}
+                                                options={field.choiceOptions}
+                                                value={field.value}
+                                                data-path={field.path}
+                                                data-kind={field.kind}
+                                                onchange={handleFieldChange}></lightning-combobox>
+                                        </template>
+                                        <template lwc:if={field.isJson}>
+                                            <lightning-textarea
+                                                class="code"
+                                                label={field.label}
+                                                field-level-help={field.help}
+                                                required={field.required}
+                                                placeholder={field.jsonPlaceholder}
+                                                value={field.value}
+                                                data-path={field.path}
+                                                data-kind={field.kind}
+                                                onchange={handleFieldChange}></lightning-textarea>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </template>
+                    <template lwc:else>
+                        <p class="slds-text-body_small slds-text-color_weak" data-no-inputs>This tool takes no input. Click Run to try it.</p>
+                    </template>
+                </template>
+                <template lwc:else>
+                    <lightning-textarea class="code code_tall" label="Tool input (JSON)" value={jsonText} onchange={handleJsonChange}></lightning-textarea>
+                </template>
+
+                <div class="record">
+                    <template lwc:if={showRecordField}>
+                        <div data-error={recordError}>
+                            <lightning-input
+                                label="Record the agent is working on"
+                                placeholder="Record Id, such as 500..."
+                                field-level-help={recordHelp}
+                                required={needsRecord}
+                                value={recordId}
+                                data-path="recordId"
+                                onchange={handleRecordIdChange}></lightning-input>
+                        </div>
+                    </template>
+                    <template lwc:if={showMoreOptionsLink}>
+                        <lightning-button
+                            variant="base"
+                            label="Add the record the agent is working on"
+                            icon-name="utility:add"
+                            onclick={handleShowMoreOptions}></lightning-button>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </lightning-modal-body>
+    <lightning-modal-footer>
+        <lightning-button label="Close" onclick={handleClose}></lightning-button>
+        <template lwc:if={showResultScreen}>
+            <lightning-button class="slds-m-left_x-small" label="Change input" icon-name="utility:back" onclick={handleBack} data-back></lightning-button>
+        </template>
+        <template lwc:if={canTry}>
+            <lightning-button
+                class="slds-m-left_x-small"
+                variant="brand"
+                icon-name="utility:play"
+                label={runLabel}
+                onclick={handleRun}
+                disabled={runDisabled}></lightning-button>
+        </template>
+    </lightning-modal-footer>
+</template>

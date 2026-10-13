@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RequiresObject__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Whether a tool of this type acts on one Salesforce object that the admin chooses. Its Implementation Configuration must then name the object in objectApiName; Core rejects the tool at save when it is missing, and authoring tools ask for the object first.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Check when the admin must choose a Salesforce object (objectApiName) to configure a tool of this type.</inlineHelpText>
+    <label>Requires Object</label>
+    <type>Checkbox</type>
+</CustomField>

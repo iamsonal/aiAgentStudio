@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>LastSeenAt__c</fullName>
+    <description>When this failure was last signalled.</description>
+    <inlineHelpText>Read-only. Pluto Core sets this value; it cannot be edited.</inlineHelpText>
+    <label>Last Seen At</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RecordRetentionDays__c</fullName>
+    <description>Days after completion that payload-purged terminal runs and their evidence are permanently deleted.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Leave blank to keep records indefinitely. Otherwise use Payload Retention Days through 3650.</inlineHelpText>
+    <label>Record Retention Days</label>
+    <precision>4</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

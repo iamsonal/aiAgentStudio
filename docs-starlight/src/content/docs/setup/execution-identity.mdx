@@ -1,0 +1,85 @@
+---
+title: Create an execution identity
+description: Set up the dedicated Salesforce user an agent runs as, and the Named Credential that signs in as that user.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+An **Agent Execution Identity** pairs a dedicated Salesforce user, the execution user, with a Named Credential that signs in as that user. An agent with an identity runs as its execution user.
+
+## Do you need one?
+
+| You want the agent to | Identity |
+| --- | --- |
+| Wait for a person to approve a tool call | Needed |
+| Run from a scheduled flow, a platform event flow, or Apex in the background | Needed |
+| Keep working through long waits and recover after failures without the starter | Needed |
+| Help the signed-in person and do only what they could do anyway | Not needed. Leave the field blank. |
+
+A run of an agent with an identity that a person starts, for example from a record page or by saving a record, is also limited to what that person can see. The person cannot turn this off.
+
+## Create one
+
+You need a System Administrator. It takes about 30 minutes the first time.
+
+<Steps>
+
+1. Create the execution user. Use a dedicated user, never a real person. A Salesforce Integration user works best: profile **Minimum Access - API Only Integrations**, permission set license **Salesforce API Integration**. It signs in only through the API and does not use a full license.
+
+2. Give the execution user access. Assign `AgentKernelServicePrincipal`, `AgentModelAdapters`, and only the business access its agents' tools need.
+
+   :::caution
+   Never assign `AgentKernelHumanDecision` or any other approval permission. Core refuses an identity whose user can approve.
+   :::
+
+3. Create a certificate. In Setup, open **Certificate and Key Management** and create a self-signed certificate, for example `Agent_Core_Loopback`.
+
+4. Create an External Client App (or a connected app) with OAuth turned on.
+   - Scopes: **Manage user data via APIs (api)** and **Perform requests at any time (refresh_token)**.
+   - Turn on **JWT Bearer Flow** and upload the certificate from step 3.
+   - Set **Permitted Users** to **Admin approved users are pre-authorized**. Add a permission set that only the execution user holds.
+   - Copy the **Consumer Key**.
+
+5. Create an External Credential with protocol **OAuth 2.0** and flow **JWT Bearer**.
+   - Identity Provider URL: `https://<your My Domain>/services/oauth2/token`.
+   - Signing Certificate: the certificate from step 3.
+   - JWT claims: `iss` is the Consumer Key, `sub` is the execution user's username, and `aud` is `https://login.salesforce.com` (in a sandbox, `https://test.salesforce.com`).
+   - Add one **Named Principal**, for example `ServiceUserPrincipal`.
+
+6. Create a Named Credential. Set its URL to your My Domain URL and its External Credential to the one from step 5. Leave **Generate Authorization Header** on.
+
+7. Create a permission set that lets people use the credential. Under **External Credential Principal Access**, add the principal from step 5. Assign the permission set to:
+   - People and integrations that start runs of this agent or reply to them.
+   - Approvers.
+   - Operators who rescue or reconcile runs.
+   - The owner of Core's schedules.
+
+8. Create the Agent Execution Identity record. Pick the execution user in **User**, enter the Named Credential's API name, and check **Active**.
+
+9. On the record in Pluto Console, click **Verify**. Without Pluto Console, run the **Verify Agent Execution Identity** Flow action. It signs in through the Named Credential and checks that it lands on the execution user.
+
+10. On each agent that should run as this user, select the identity in **Agent Execution Identity**.
+
+</Steps>
+
+## How it fails
+
+| What you see | Cause | Fix |
+| --- | --- | --- |
+| Verify fails | The Named Credential signs in as another user, or not at all. | Fix what **Verification Result** says, then click **Verify** again. |
+| A run continues only after up to 10 minutes | The person whose action continued the run cannot use the credential. The work still happens, on the next recovery pass. | Assign them the permission set from step 7. |
+| A run pauses with `DISPATCH_UNDELIVERABLE` | Core tried three times to start the next step and could not sign in. | Check that the user is active and Verify passes, then rescue the run. |
+| **Fix execution identities** on the Health card | An identity failed Verify, changed since it passed, or someone holds the credential without needing it. | Follow the card. It names the identity or the users. |
+
+Changing the user or the Named Credential clears the last Verify result. Verify again after any change.
+
+## Rules Core enforces
+
+- Each Named Credential belongs to one identity.
+- An identity in use by an agent or a run cannot be deleted. Uncheck **Active** instead. Runs already started keep their identity.
+- You cannot clear the identity on an agent that has tools needing approval.
+- An execution user can never approve or reconcile its own runs.
+
+## Cost
+
+A run started by anyone other than the execution user signs in through the Named Credential once: 1 extra job and 1 API call. A reply, approval, or rescue on such a run costs the same again. See [Limits and cost](/operate/limits/).

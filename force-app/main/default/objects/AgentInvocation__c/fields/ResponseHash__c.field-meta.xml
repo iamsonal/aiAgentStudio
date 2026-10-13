@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ResponseHash__c</fullName>
+    <description>SHA-256 hash of the canonical unprotected normalized response.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>SHA-256 hash of the original response before retention protection.</inlineHelpText>
+    <label>Response Hash</label>
+    <length>64</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

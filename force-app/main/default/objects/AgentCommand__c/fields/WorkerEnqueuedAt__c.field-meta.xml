@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>WorkerEnqueuedAt__c</fullName>
+    <description>Time when Core last received a Queueable job Id for the current command lease.</description>
+    <inlineHelpText>Read-only delivery evidence. This timestamp is cleared whenever the current worker correlation is cleared.</inlineHelpText>
+    <label>Worker Enqueued At</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

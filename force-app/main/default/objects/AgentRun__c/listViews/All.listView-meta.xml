@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>All</fullName>
+    <columns>NAME</columns>
+    <columns>AgentDefinition__c</columns>
+    <columns>Status__c</columns>
+    <columns>AnchorRecordId__c</columns>
+    <columns>InitiatingUser__c</columns>
+    <columns>StartedAt__c</columns>
+    <columns>LastActivityAt__c</columns>
+    <columns>CompletedAt__c</columns>
+    <columns>WaitingReason__c</columns>
+    <columns>ErrorCode__c</columns>
+    <filterScope>Everything</filterScope>
+    <label>All</label>
+</ListView>

@@ -3,83 +3,253 @@ project:
     name: aiAgentStudio
     package:
         name: aiAgentStudio
-        api_version: '63.0'
+        api_version: '68.0'
     git:
         default_branch: 'main'
     source_format: sfdx
 
+# Naming: tasks are <verb>_<package>[_<object>]; flows are setup_<package>.
+# <package> is the package name with - replaced by _; Core source is in force-app.
 tasks:
-    robot:
-        options:
-            suites: robot/aiAgentStudio/tests
-            options:
-                outputdir: robot/aiAgentStudio/results
-
-    robot_testdoc:
-        options:
-            path: robot/aiAgentStudio/tests
-            output: robot/aiAgentStudio/doc/aiAgentStudio_tests.html
-    deploy_seed_data:
-        class_path: cumulusci.tasks.salesforce.Deploy
-        options:
-            path: seed-data
-    deploy_addons:
-        class_path: cumulusci.tasks.salesforce.Deploy
-        options:
-            path: aiAgentStudioAddons
-    enable_knowledge_user:
-        class_path: cumulusci.tasks.apex.anon.AnonymousApexTask
-        options:
-            path: scripts/apex/ConfigureAppDev.cls
-            apex: enableKnowledgeUser();
-    load_knowledge_data:
+    check_package_build_profile:
+        description: Fails when the package build profile no longer matches Core's fields.
         class_path: cumulusci.tasks.command.Command
         options:
-            command: >
-                sf data import bulk
-                --file data/Knowledge__kav.csv
-                --sobject Knowledge__kav
-                --wait 30
+            command: node scripts/generate-package-build-profile.js --check
+    build_package_version:
+        description: Builds an unlocked package version with the Salesforce CLI, which also deploys Core's test fixtures to the build org. Set the package with the command option.
+        class_path: cumulusci.tasks.command.Command
+        options:
+            command: sf package version create --package AgentCore --code-coverage --installation-key-bypass --wait 90
+    install_agent_core:
+        description: Installs the newest Pluto Core package version from the Dev Hub, for admins only. Set version to a 04t to install that one.
+        class_path: tasks.install_package.InstallNewestPackageVersion
+        options:
+            package: AgentCore
+            security_type: NONE
+    install_agent_model_adapters:
+        description: Installs the newest Pluto Model Adapters package version from the Dev Hub, for admins only. Set version to a 04t to install that one.
+        class_path: tasks.install_package.InstallNewestPackageVersion
+        options:
+            package: PlutoModelAdapters
+            security_type: NONE
+    install_pluto:
+        description: Installs the newest Pluto Console package version from the Dev Hub, for admins only. Set version to a 04t to install that one.
+        class_path: tasks.install_package.InstallNewestPackageVersion
+        options:
+            package: PlutoConsole
+            security_type: NONE
+    deploy_agent_core_test_fixtures:
+        description: Deploys shared test metadata to development and CI orgs only.
+        class_path: cumulusci.tasks.salesforce.Deploy
+        options:
+            path: unpackagedMetadata/main
+    deploy_agent_core:
+        description: Deploys Pluto Core.
+        class_path: cumulusci.tasks.salesforce.Deploy
+        options:
+            path: force-app
+    install_agent_core_schedulers:
+        description: Schedules Pluto Core's recovery and retention jobs.
+        class_path: cumulusci.tasks.apex.anon.AnonymousApexTask
+        options:
+            path: scripts/apex/install-agent-core-schedulers.apex
+    deploy_agent_model_adapters:
+        description: Deploys Pluto Model Adapters.
+        class_path: cumulusci.tasks.salesforce.Deploy
+        options:
+            path: pluto-model-adapters
+    deploy_agent_service_user_setup:
+        description: Deploys Agent Service User Setup.
+        class_path: cumulusci.tasks.salesforce.Deploy
+        options:
+            path: packages/agent-service-user-setup
+    deploy_agent_hitl:
+        description: Deploys Agent HITL.
+        class_path: cumulusci.tasks.salesforce.Deploy
+        options:
+            path: packages/agent-hitl
+    deploy_agent_channels:
+        description: Deploys Agent Channels.
+        class_path: cumulusci.tasks.salesforce.Deploy
+        options:
+            path: packages/agent-channels
+    deploy_agent_tools:
+        description: Deploys Agent Tools.
+        class_path: cumulusci.tasks.salesforce.Deploy
+        options:
+            path: packages/agent-tools
+    deploy_pluto:
+        description: Deploys Pluto Console, the admin console.
+        class_path: cumulusci.tasks.salesforce.Deploy
+        options:
+            path: pluto-console
+    deploy_agent_testing_kit:
+        description: Deploys the Agent Testing Kit.
+        class_path: cumulusci.tasks.salesforce.Deploy
+        options:
+            path: packages/agent-testing-kit
+    add_agent_testing_kit_approver:
+        description: Adds the CumulusCI user to both Northwind approver queues and checks Knowledge User on them, so they can decide refunds and install the refund policy article.
+        class_path: cumulusci.tasks.apex.anon.AnonymousApexTask
+        options:
+            path: scripts/apex/add-agent-testing-kit-approver.apex
+    create_agent_testing_kit_service_user:
+        description: Creates the kit's service user and its Agent_Core_Loopback credentials.
+        class_path: cumulusci.tasks.command.SalesforceCommand
+        options:
+            command: bash scripts/setup-agent-testing-kit-service-user.sh
+    load_agent_testing_kit_samples:
+        description: Creates the Northwind demo records, the refund policy article, and the two demo agents. Safe to run again.
+        class_path: cumulusci.tasks.apex.anon.AnonymousApexTask
+        options:
+            path: scripts/apex/install-agent-testing-kit.apex
+    delete_agent_testing_kit_sample_records:
+        description: Deletes the Northwind demo records and the refund policy article. Keeps the agents and run history.
+        class_path: cumulusci.tasks.apex.anon.AnonymousApexTask
+        options:
+            path: scripts/apex/cleanup-agent-testing-kit.apex
+    enable_debug_logs:
+        description: Turns on Apex debug logs for 24 hours for the admin user, the agent service user, and the Automated Process user. Safe to run again to extend them.
+        class_path: tasks.debug_logs.EnableDebugLogs
 
 flows:
+    setup_agent_core:
+        description: Deploys Pluto Core, assigns its admin permission sets, and schedules its jobs.
+        steps:
+            1:
+                task: deploy_agent_core
+            2:
+                task: assign_permission_sets
+                options:
+                    api_names: AgentKernelAdmin,AgentKernelOperator
+            3:
+                task: install_agent_core_schedulers
+    setup_agent_model_adapters:
+        description: Deploys Pluto Model Adapters and assigns its permission set.
+        steps:
+            1:
+                task: deploy_agent_model_adapters
+            2:
+                task: assign_permission_sets
+                options:
+                    api_names: AgentModelAdapters
+    setup_agent_service_user_setup:
+        description: Deploys Agent Service User Setup.
+        steps:
+            1:
+                task: deploy_agent_service_user_setup
+    setup_agent_hitl:
+        description: Deploys Agent HITL.
+        steps:
+            1:
+                task: deploy_agent_hitl
+    setup_agent_channels:
+        description: Deploys Agent Channels.
+        steps:
+            1:
+                task: deploy_agent_channels
+    setup_agent_tools:
+        description: Deploys Agent Tools.
+        steps:
+            1:
+                task: deploy_agent_tools
+    setup_pluto:
+        description: Deploys Pluto Console and assigns its admin permission set.
+        steps:
+            1:
+                task: deploy_pluto
+            2:
+                task: assign_permission_sets
+                options:
+                    api_names: PlutoAdmin
+    setup_agent_testing_kit:
+        description: Deploys the Agent Testing Kit, grants the CumulusCI user what the kit needs, creates its service user, and installs the Northwind demo.
+        steps:
+            1:
+                task: deploy_agent_testing_kit
+            2:
+                task: assign_permission_sets
+                options:
+                    api_names: AgentTestingKit,AgentKernelHumanDecision,AgentKernelTrustResolver,AgentKernelSensitiveData
+            3:
+                task: add_agent_testing_kit_approver
+            4:
+                task: create_agent_testing_kit_service_user
+            5:
+                task: load_agent_testing_kit_samples
+    build_packages:
+        description: Builds unlocked versions of Pluto Core, Model Adapters, and Console. The last two depend on the newest Core version (see sfdx-project.json).
+        steps:
+            0.5:
+                task: check_package_build_profile
+            1:
+                task: build_package_version
+                options:
+                    command: sf package version create --package AgentCore --code-coverage --installation-key-bypass --wait 90
+            2:
+                task: build_package_version
+                options:
+                    command: sf package version create --package PlutoModelAdapters --code-coverage --installation-key-bypass --wait 90
+            3:
+                task: build_package_version
+                options:
+                    command: sf package version create --package PlutoConsole --code-coverage --installation-key-bypass --wait 90
+    # Run with --org qa. Uses the newest package versions, so run build_packages first.
+    packaged_org:
+        description: Sets up a scratch org like dev_org, but installs Pluto Core, Model Adapters, and Console from their newest unlocked package versions instead of deploying their source.
+        steps:
+            1:
+                task: install_agent_core
+            2:
+                task: install_agent_model_adapters
+            3:
+                task: install_pluto
+            4:
+                task: assign_permission_sets
+                options:
+                    api_names: AgentKernelAdmin,AgentKernelOperator,AgentModelAdapters,PlutoAdmin
+            5:
+                task: install_agent_core_schedulers
+            6:
+                flow: setup_agent_service_user_setup
+            7:
+                flow: setup_agent_tools
+            8:
+                flow: setup_agent_testing_kit
+            9:
+                flow: setup_agent_hitl
+            10:
+                flow: setup_agent_channels
+            11:
+                task: enable_debug_logs
+    # Standard step 2 deploys Core from force-app. Finish its setup without redeploying it.
     dev_org:
         steps:
-            5.1:
-                task: deploy_seed_data
-            5.2:
+            1.5:
+                task: deploy_agent_core_test_fixtures
+            5:
                 task: assign_permission_sets
                 options:
-                    api_names: AIAgentStudioConfigurator
-            6.1:
-                task: enable_knowledge_user
-            6.2:
-                task: assign_permission_sets
-                options:
-                    api_names: KnowledgeDemo
-            6.3:
-                task: assign_permission_sets
-                options:
-                    api_names: AIAgentStudioEndUser
+                    api_names: AgentKernelAdmin,AgentKernelOperator
+            6:
+                task: install_agent_core_schedulers
             7:
-                task: execute_anon
-                description: Set up Salesforce Data
-                options:
-                    apex: "AgentTestDataFactory.createComprehensiveShowcase();"
-            7.1:
-                task: command
-                description: Deploy addons and set up External Client App (if available)
-                options:
-                    command: |
-                        if [ -f "aiAgentStudioAddons/main/default/classes/AgentStudioAuthSetup.cls" ]; then
-                            echo "Addons found - deploying and configuring External Client App..."
-                            cci task run deploy_addons --org dev
-                            cci task run assign_permission_sets --org dev --api_names AIAgentStudioConfiguratorAdvanced
-                            cci task run execute_anon --org dev --apex "AgentStudioAuthSetup.setup();"
-                            cci task run execute_anon --org dev --apex "CaseProcessingPipelineFactory.setupQueues();"
-                            cci task run execute_anon --org dev --apex "CaseProcessingPipelineFactory.executeDemo();"
-                        else
-                            echo "Addons not available - skipping External Client App setup (this is expected for public repo)"
-                        fi
+                flow: setup_agent_model_adapters
+            8:
+                flow: setup_agent_service_user_setup
+            9:
+                flow: setup_agent_tools
+            10:
+                flow: setup_pluto
+            11:
+                flow: setup_agent_testing_kit
+            12:
+                flow: setup_agent_hitl
+            13:
+                flow: setup_agent_channels
+            14:
+                task: enable_debug_logs
 
 orgs:
     scratch:

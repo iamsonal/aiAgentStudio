@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DmlStatements__c</fullName>
+    <description>DML statements used from the start of this attempt until Core recorded it, including Core's own work in between.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>DML statements this attempt used. Salesforce counts each savepoint as one. Other calls in the same Transaction ID shared the same governor limits.</inlineHelpText>
+    <label>DML Statements</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

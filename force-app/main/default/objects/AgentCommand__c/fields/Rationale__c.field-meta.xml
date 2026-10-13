@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Rationale__c</fullName>
+    <description>The model&apos;s own explanation of why it made this tool call, written with the call and trust-protected. It is not verified and never grants or affects authority. Cleared with the command&apos;s payload by payload retention.</description>
+    <inlineHelpText>The agent&apos;s explanation of this tool call. Not verified: check the input and record data before relying on it.</inlineHelpText>
+    <label>Rationale</label>
+    <length>1000</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

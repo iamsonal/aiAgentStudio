@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ParentRun__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Optional lineage link to another Pluto Core run. Parent and child do not share budget, transcript, identity, or lifecycle.</description>
+    <inlineHelpText>Lineage only. Set at start when correlating runs; Core does not share state, budget, transcript, or identity with the parent.</inlineHelpText>
+    <label>Parent Run</label>
+    <referenceTo>AgentRun__c</referenceTo>
+    <relationshipLabel>Correlated Runs</relationshipLabel>
+    <relationshipName>CorrelatedRuns</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

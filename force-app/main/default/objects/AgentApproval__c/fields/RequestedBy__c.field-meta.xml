@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RequestedBy__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>User who started the run.</description>
+    <inlineHelpText>Read-only. Pluto Core sets this value; it cannot be edited.</inlineHelpText>
+    <label>Requested By</label>
+    <referenceTo>User</referenceTo>
+    <relationshipLabel>Requested Agent Approvals</relationshipLabel>
+    <relationshipName>RequestedAgentApprovals</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

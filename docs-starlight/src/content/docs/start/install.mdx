@@ -1,0 +1,56 @@
+---
+title: Install
+description: Install Pluto Core, Pluto Model Adapters, and Pluto Console as unlocked packages, and turn on Core's schedules.
+---
+
+import InstallLinks from '../../../components/InstallLinks.astro';
+
+Pluto installs as three unlocked packages.
+
+:::tip
+Install in a sandbox first. Move to production after your first agent works there.
+:::
+
+## Before you start
+
+You need:
+
+- A System Administrator user in the org.
+- An API key for OpenAI or Azure OpenAI, unless your developers write their own model connection.
+
+## Install the packages
+
+<InstallLinks />
+
+1. Install **Pluto Core**. Use the Production link for a production or Developer Edition org, and the Sandbox link for a sandbox.
+2. Choose **Install for Admins Only**. You assign access to others with permission sets later.
+3. Install **Pluto Model Adapters** the same way.
+4. Optional: install **Pluto Console** the same way. To learn what it changes in your org, see [Install Pluto Console](/setup/pluto/).
+
+Install in this order. Pluto Model Adapters and Pluto Console need Pluto Core.
+
+## Turn on Core's schedules
+
+Core has two schedules. The recovery schedule runs every 10 minutes and continues runs that stopped. The retention schedule runs once a day and clears old run data. Runs work without them, but nothing recovers and nothing is cleared.
+
+1. In Setup, assign yourself the `AgentKernelAdmin` permission set. The schedules run as the user who installs them.
+2. With Pluto Console: open the **Pluto** app and its **Pluto Home** tab. On the **Agent Core Health** card, click **Install or Repair Schedules**.
+3. Without Pluto Console: open the Developer Console, choose **Debug**, then **Open Execute Anonymous Window**, and run:
+
+    ```apex
+    AgentCoreSchedules.install();
+    ```
+
+## Check the install
+
+In Setup, open **Scheduled Jobs**. You should see two jobs owned by you whose names start with "Agent Core". With Pluto Console, the **Agent Core Health** card should show no schedule problems.
+
+## Upgrade
+
+Install the new version of each package with the same links, in the same order. Your agents, tools, and runs stay.
+
+Salesforce can refuse to change a class that a scheduled job uses. If the upgrade fails for that reason:
+
+1. Remove the schedules. In the Execute Anonymous window, run `AgentCoreSchedules.remove();`.
+2. Install the new version.
+3. Install the schedules again, as in [Turn on Core's schedules](#turn-on-cores-schedules).

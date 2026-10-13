@@ -1,0 +1,70 @@
+/*
+ * This file is part of Pluto. It is licensed under the GNU Affero General
+ * Public License, version 3 only. See the LICENSE file at the root of this
+ * repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+ *
+ * The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+ * uses only Pluto's public interface stay under its own license.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * Copyright (c) 2026 Sonal
+ */
+
+.slds-list_vertical {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.slds-item {
+    background-color: var(--slds-g-color-neutral-base-100, #ffffff);
+    border: 1px solid #d8dde6;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        background-color 0.2s ease;
+    overflow: visible; /* Allow combobox dropdowns to overflow */
+    position: relative;
+}
+
+.slds-item:hover {
+    border-color: #d8e6f4;
+    box-shadow: 0 1px 3px rgba(95, 135, 171, 0.12);
+    background-color: #fafcfe;
+}
+
+code {
+    font-family: 'Courier New', Courier, monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Empty state styling */
+.slds-text-align_center {
+    text-align: center;
+}
+
+/* Object editor styling */
+.object-editor {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px dashed #d8dde6;
+    border-radius: 0.25rem;
+    background-color: #fafaf9;
+    overflow: visible; /* Allow combobox dropdowns to overflow */
+    position: relative;
+}
+
+.object-editor .slds-grid {
+    align-items: center;
+}
+
+/* Ensure combobox dropdowns in object editor render properly */
+.object-editor lightning-combobox {
+    position: relative;
+    z-index: 100;
+}

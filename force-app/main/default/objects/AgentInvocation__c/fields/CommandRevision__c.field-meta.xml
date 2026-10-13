@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CommandRevision__c</fullName>
+    <description>Run revision expected by the invoked command, used for deterministic ordering.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Run revision the command expected when this invocation began.</inlineHelpText>
+    <label>Command Revision</label>
+    <precision>18</precision>
+    <required>true</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

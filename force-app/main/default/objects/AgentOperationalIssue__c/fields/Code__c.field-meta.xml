@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Code__c</fullName>
+    <description>The kind of failure, such as FLOW_START_LOST or WORKER_FAILED.</description>
+    <inlineHelpText>Read-only. What failed. Next Step says how to fix it.</inlineHelpText>
+    <label>Code</label>
+    <length>80</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+</CustomField>

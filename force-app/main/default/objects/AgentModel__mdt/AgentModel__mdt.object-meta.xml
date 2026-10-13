@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Models this org approves for agents. Each record names the model adapter, Named Credential, and provider model identifier, with optional USD token prices. Agent definitions choose one active record.</description>
+    <label>Agent Model</label>
+    <pluralLabel>Agent Models</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>OriginalPayloadLength__c</fullName>
+    <description>Immutable Original Payload Length recorded in the agent run event history.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Read-only audit evidence. Events are appended by Core and cannot be edited.</inlineHelpText>
+    <label>Original Payload Length</label>
+    <precision>6</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

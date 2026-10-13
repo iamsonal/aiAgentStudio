@@ -1,0 +1,69 @@
+/*
+ * This file is part of Pluto. It is licensed under the GNU Affero General
+ * Public License, version 3 only. See the LICENSE file at the root of this
+ * repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+ *
+ * The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+ * uses only Pluto's public interface stay under its own license.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * Copyright (c) 2026 Sonal
+ */
+
+:host {
+    display: block;
+}
+
+.editor-container {
+    border: 1px solid var(--lwc-colorBorderInput, #747474);
+    border-radius: 0.25rem;
+    box-sizing: border-box;
+    height: 20rem;
+    min-height: 5rem;
+    overflow: hidden;
+    padding-bottom: 12px;
+    resize: vertical;
+    background: var(--lwc-colorBackgroundInput, #ffffff);
+    transition:
+        border-color 0.15s,
+        box-shadow 0.15s;
+}
+
+.editor-container:focus-within {
+    border-color: var(--lwc-colorBorderInputActive, #1b96ff);
+    box-shadow: 0 0 3px var(--lwc-colorBorderInputActive, #1b96ff);
+}
+
+.editor-container.has-error {
+    border-color: var(--lwc-colorBorderError, #ea001e);
+    box-shadow: 0 0 0 1px var(--lwc-colorBorderError, #ea001e);
+}
+
+.editor-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.125rem;
+}
+
+.editor-frame {
+    border: 0;
+    display: block;
+    height: 100%;
+    width: 100%;
+}
+
+.json-view {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--lwc-colorTextDefault, #181818);
+    font:
+        0.75rem/1.5 SFMono-Regular,
+        Consolas,
+        'Liberation Mono',
+        monospace;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}

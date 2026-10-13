@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ToolType__c</fullName>
+    <description>API name of the Agent Tool Type record this tool runs, such as UpdateRecord. The tool type supplies the Apex class and decides how Core retries and recovers the tool.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Enter the API name of an Agent Tool Type record in Custom Metadata Types: QueryRecords, CreateRecord, UpdateRecord, RunFlow, RunFlowWithExternalEffects, PostChatter, or a custom type your developer registered, such as one from the Agent Tools package.</inlineHelpText>
+    <label>Tool Type</label>
+    <length>40</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

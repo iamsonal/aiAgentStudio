@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ConfigurationHash__c</fullName>
+    <description>SHA-256 hash of the executable agent configuration (definition, active tools, and context providers) this invocation ran with.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Fingerprint of the agent configuration this model or tool call ran with.</inlineHelpText>
+    <label>Configuration Hash</label>
+    <length>64</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

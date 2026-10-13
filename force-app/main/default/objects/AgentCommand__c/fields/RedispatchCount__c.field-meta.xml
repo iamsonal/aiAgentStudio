@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RedispatchCount__c</fullName>
+    <description>Number of times scheduled recovery redispatched this queued command without it being picked up. Resets when the command is queued again.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Read-only. Core sets this. After three redispatches that never reach the execution user, Core pauses the run with DISPATCH_UNDELIVERABLE.</inlineHelpText>
+    <label>Redispatch Count</label>
+    <precision>4</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

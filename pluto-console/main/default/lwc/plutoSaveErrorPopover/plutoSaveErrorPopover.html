@@ -1,0 +1,67 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <div class="anchor">
+        <lightning-button-icon
+            icon-name="utility:error"
+            icon-class="slds-icon-text-error"
+            variant="bare"
+            size="large"
+            alternative-text="Review the errors on this page"
+            title="Review the errors on this page"
+            aria-expanded={ariaExpanded}
+            onclick={handleToggle}></lightning-button-icon>
+        <template if:true={open}>
+            <section class={popoverClass} role="dialog" tabindex="-1" aria-labelledby="save-error-heading" data-id="error-summary" onkeydown={handleKeyDown}>
+                <lightning-button-icon
+                    class="slds-float_right slds-popover__close"
+                    icon-name="utility:close"
+                    variant="bare-inverse"
+                    size="small"
+                    alternative-text="Close"
+                    title="Close"
+                    onclick={handleClose}></lightning-button-icon>
+                <header class="slds-popover__header">
+                    <div class="slds-media slds-media_center">
+                        <div class="slds-media__figure">
+                            <lightning-icon icon-name="utility:error" size="x-small" variant="inverse" alternative-text=""></lightning-icon>
+                        </div>
+                        <div class="slds-media__body">
+                            <h2 class="slds-text-heading_medium" id="save-error-heading">We hit a snag.</h2>
+                        </div>
+                    </div>
+                </header>
+                <div class="slds-popover__body">
+                    <template if:true={hasPageErrors}>
+                        <ul class="slds-m-bottom_x-small">
+                            <template for:each={pageErrors} for:item="pageError">
+                                <li key={pageError.key} class="slds-text-color_error">{pageError.message}</li>
+                            </template>
+                        </ul>
+                    </template>
+                    <template if:true={hasErrorFields}>
+                        <p class="slds-text-title_bold">Review the following fields</p>
+                        <ul class="slds-list_dotted">
+                            <template for:each={errorFields} for:item="errorField">
+                                <li key={errorField.fieldApiName}>
+                                    <a href="#" data-field={errorField.fieldApiName} onclick={handleFieldClick}>{errorField.label}</a>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+                </div>
+            </section>
+        </template>
+    </div>
+</template>

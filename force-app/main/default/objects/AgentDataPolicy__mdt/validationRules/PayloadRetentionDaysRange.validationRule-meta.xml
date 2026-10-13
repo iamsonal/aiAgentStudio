@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PayloadRetentionDaysRange</fullName>
+    <active>true</active>
+    <description>Payload retention must be a whole number from 0 through 3650.</description>
+    <errorConditionFormula>AND(NOT(ISBLANK(PayloadRetentionDays__c)), OR(PayloadRetentionDays__c &lt; 0, PayloadRetentionDays__c &gt; 3650, MOD(PayloadRetentionDays__c, 1) &lt;&gt; 0))</errorConditionFormula>
+    <errorDisplayField>PayloadRetentionDays__c</errorDisplayField>
+    <errorMessage>Payload Retention Days must be blank or a whole number from 0 through 3650.</errorMessage>
+</ValidationRule>

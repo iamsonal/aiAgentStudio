@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ImplementationConfiguration__c</fullName>
+    <description>Optional non-secret JSON configuration for a custom Apex context provider.</description>
+    <inlineHelpText>For Apex only, enter a non-secret JSON object in the format expected by the class. Leave blank for Field Set.</inlineHelpText>
+    <label>Implementation Configuration</label>
+    <length>32768</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>6</visibleLines>
+</CustomField>

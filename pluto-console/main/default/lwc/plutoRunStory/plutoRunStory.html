@@ -1,0 +1,557 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <article class="story" aria-busy={refreshing}>
+        <p class="sr-only" aria-live="polite">{announcement}</p>
+
+        <template lwc:if={showSpinner}>
+            <div class="loading">
+                <lightning-spinner alternative-text="Loading the run" size="medium"></lightning-spinner>
+            </div>
+        </template>
+
+        <template lwc:if={errorMessage}>
+            <div class="load-error" role="alert">
+                <lightning-icon icon-name="utility:error" size="x-small" class="load-error-icon"></lightning-icon>
+                <span>{errorMessage}</span>
+                <lightning-button variant="base" label="Try again" onclick={handleRefresh}></lightning-button>
+            </div>
+        </template>
+
+        <template lwc:if={hasStory}>
+            <!-- Header -->
+            <header class={headClass}>
+                <div class="head-top">
+                    <div class="head-title">
+                        <p class="eyebrow">Agent run · {header.runName}</p>
+                        <div class="head-name">
+                            <h2 class="run-name">{header.agentName}</h2>
+                            <span class={statusClass}> {header.status} </span>
+                            <template for:each={highlights} for:item="highlight">
+                                <button
+                                    key={highlight.key}
+                                    class={highlight.className}
+                                    title="Show the step"
+                                    aria-label={highlight.actionLabel}
+                                    data-target={highlight.targetKey}
+                                    onclick={handleSegment}>
+                                    {highlight.label}
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="head-actions">
+                        <template lwc:if={liveText}>
+                            <span class="live" title={updatedText}> <span class="live-dot" aria-hidden="true"></span>{liveText} </span>
+                        </template>
+                        <template lwc:else>
+                            <span class="updated">{updatedText}</span>
+                        </template>
+                        <template lwc:if={showRefresh}>
+                            <lightning-button-icon
+                                icon-name="utility:refresh"
+                                variant="border-filled"
+                                alternative-text="Refresh"
+                                title="Refresh"
+                                onclick={handleRefresh}
+                                disabled={refreshDisabled}></lightning-button-icon>
+                        </template>
+                    </div>
+                </div>
+                <!-- The answer is what most readers came for, so it leads. -->
+                <template lwc:if={headline}>
+                    <blockquote class="headline">
+                        <p>{headline}</p>
+                    </blockquote>
+                </template>
+
+                <p class="head-meta">
+                    <template lwc:if={header.anchorId}>
+                        <span class="meta-item">
+                            <lightning-icon icon-name="utility:record_lookup" size="xx-small" class="meta-icon"></lightning-icon>
+                            <c-pluto-link page-reference={anchorPage} label={header.anchorName}></c-pluto-link>
+                        </span>
+                    </template>
+                    <template lwc:if={header.startedBy}>
+                        <span class="meta-item">
+                            <lightning-icon icon-name="utility:user" size="xx-small" class="meta-icon"></lightning-icon>
+                            Started by <c-pluto-link page-reference={startedByPage} label={header.startedBy}></c-pluto-link>
+                        </span>
+                    </template>
+                    <template lwc:if={startedText}>
+                        <span class="meta-item">
+                            <lightning-icon icon-name="utility:clock" size="xx-small" class="meta-icon"></lightning-icon>
+                            {startedText}
+                        </span>
+                    </template>
+                    <template lwc:if={identityPage}>
+                        <span class="meta-item meta-item_muted">
+                            <c-pluto-link page-reference={identityPage} label={header.mode} title="Open the execution identity"></c-pluto-link>
+                        </span>
+                    </template>
+                    <template lwc:elseif={header.mode}>
+                        <span class="meta-item meta-item_muted">{header.mode}</span>
+                    </template>
+                    <template lwc:if={header.parentRunId}>
+                        <span class="meta-item">
+                            <lightning-icon icon-name="utility:hierarchy" size="xx-small" class="meta-icon"></lightning-icon>
+                            <c-pluto-link page-reference={parentPage} label={parentLabel}></c-pluto-link>
+                        </span>
+                    </template>
+                    <template lwc:if={agentPage}>
+                        <span class="meta-item">
+                            <c-pluto-link page-reference={agentPage} label="Open agent"></c-pluto-link>
+                        </span>
+                    </template>
+                </p>
+
+                <div class="kpis">
+                    <template for:each={kpis} for:item="kpi">
+                        <div key={kpi.key} class="kpi">
+                            <span class="kpi-label">
+                                {kpi.label}
+                                <lightning-helptext content={kpi.hint} class="kpi-help"></lightning-helptext>
+                            </span>
+                            <span class={kpi.valueClass}>
+                                {kpi.value}
+                                <template lwc:if={kpi.isFull}>
+                                    <lightning-icon
+                                        icon-name="utility:warning"
+                                        size="xx-small"
+                                        class="meter-warn"
+                                        alternative-text="Limit reached"></lightning-icon>
+                                </template>
+                            </span>
+                            <template lwc:if={kpi.note}>
+                                <span class="kpi-note">{kpi.note}</span>
+                            </template>
+                            <template lwc:if={kpi.meter}>
+                                <span
+                                    class="meter"
+                                    role="meter"
+                                    aria-valuemin="0"
+                                    aria-valuemax={kpi.meter.max}
+                                    aria-valuenow={kpi.meter.used}
+                                    aria-label={kpi.meter.assistiveText}>
+                                    <span class={kpi.meter.barClass} style={kpi.meter.barStyle}></span>
+                                </span>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </header>
+
+            <!-- What needs attention -->
+            <template lwc:if={attention}>
+                <section class={attentionClass} role={attentionRole}>
+                    <lightning-icon icon-name={attention.icon} size="small" class="attention-icon"></lightning-icon>
+                    <div class="attention-body">
+                        <p class="attention-heading">{attention.heading}</p>
+                        <p class="attention-title">{attention.title}</p>
+                        <template lwc:if={attention.detail}>
+                            <p class="attention-detail">{attention.detail}</p>
+                        </template>
+                        <template lwc:if={attention.action}>
+                            <p class="attention-action">
+                                <lightning-icon icon-name={attention.actionIcon} size="xx-small" class="attention-action-icon"></lightning-icon>
+                                {attention.action}
+                            </p>
+                        </template>
+                        <template lwc:if={attention.message}>
+                            <p class="attention-message"><code>{attention.code}</code> {attention.message}</p>
+                        </template>
+                    </div>
+                    <div class="attention-actions">
+                        <template lwc:if={attention.canOperate}>
+                            <lightning-button variant="brand" label="Rescue or cancel" onclick={handleOperate}></lightning-button>
+                        </template>
+                        <template lwc:if={approvalPage}>
+                            <c-pluto-link variant="button" page-reference={approvalPage} label="Open approval"></c-pluto-link>
+                        </template>
+                        <template lwc:if={attentionAgentPage}>
+                            <c-pluto-link variant="button" page-reference={attentionAgentPage} label="Open agent"></c-pluto-link>
+                        </template>
+                        <template lwc:if={showFocusLink}>
+                            <lightning-button
+                                variant="neutral"
+                                label="Show the step"
+                                icon-name="utility:search"
+                                onclick={handleShowFocus}
+                                class="focus-link"></lightning-button>
+                        </template>
+                        <template lwc:if={canCopyDiagnostics}>
+                            <lightning-button
+                                variant="base"
+                                label={copyLabel}
+                                icon-name={copyIcon}
+                                onclick={handleCopyDiagnostics}
+                                class="copy-diagnostics"></lightning-button>
+                        </template>
+                    </div>
+                </section>
+            </template>
+
+            <!-- Asked and answered -->
+            <template lwc:if={outcome}>
+                <section class="outcome" aria-label="Input and answer">
+                    <div class="outcome-grid">
+                        <c-pluto-run-story-payload label="Input" value={outcome.input} empty-text={outcome.inputEmptyText}></c-pluto-run-story-payload>
+                        <template lwc:if={showAnswer}>
+                            <c-pluto-run-story-payload label="Final answer" value={outcome.output}></c-pluto-run-story-payload>
+                        </template>
+                        <template lwc:elseif={showAskedOnly}>
+                            <c-pluto-run-story-payload label="Final answer" empty-text="Not written yet."></c-pluto-run-story-payload>
+                        </template>
+                    </div>
+                </section>
+            </template>
+
+            <!-- Where the time went -->
+            <template lwc:if={hasSegments}>
+                <section class="time" aria-labelledby="time-heading">
+                    <h3 class="section-title" id="time-heading">Where the time went</h3>
+                    <div class="track" aria-hidden="true">
+                        <template for:each={segments} for:item="segment">
+                            <template lwc:if={segment.isLink}>
+                                <button
+                                    key={segment.key}
+                                    class={segment.className}
+                                    style={segment.style}
+                                    title={segment.label}
+                                    tabindex="-1"
+                                    data-target={segment.targetKey}
+                                    onclick={handleSegment}></button>
+                            </template>
+                            <template lwc:else>
+                                <span key={segment.key} class={segment.className} style={segment.style} title={segment.label}></span>
+                            </template>
+                        </template>
+                    </div>
+                    <ul class="legend">
+                        <template for:each={breakdown} for:item="entry">
+                            <li key={entry.key}>
+                                <template lwc:if={entry.targetKey}>
+                                    <button
+                                        class="legend-item legend-item_link"
+                                        aria-label={entry.actionLabel}
+                                        title="Show the longest one"
+                                        data-target={entry.targetKey}
+                                        onclick={handleSegment}>
+                                        <span class={entry.swatchClass} aria-hidden="true"></span>
+                                        <span class="legend-label">{entry.label}</span>
+                                        <span class="legend-value">{entry.text}</span>
+                                        <span class="legend-percent">{entry.percentText}</span>
+                                    </button>
+                                </template>
+                                <template lwc:else>
+                                    <span class="legend-item">
+                                        <span class={entry.swatchClass} aria-hidden="true"></span>
+                                        <span class="legend-label">{entry.label}</span>
+                                        <span class="legend-value">{entry.text}</span>
+                                        <span class="legend-percent">{entry.percentText}</span>
+                                    </span>
+                                </template>
+                            </li>
+                        </template>
+                    </ul>
+                </section>
+            </template>
+
+            <!-- Timeline -->
+            <section class="timeline" aria-labelledby="timeline-heading">
+                <div class="timeline-bar">
+                    <h3 class="section-title" id="timeline-heading">What happened</h3>
+                    <div class="timeline-tools">
+                        <div class="filters" role="group" aria-label="Show">
+                            <template for:each={filters} for:item="entry">
+                                <button
+                                    key={entry.value}
+                                    class={entry.className}
+                                    aria-pressed={entry.active}
+                                    data-value={entry.value}
+                                    onclick={handleFilter}
+                                    disabled={entry.disabled}>
+                                    {entry.label}<span class="filter-count">{entry.count}</span>
+                                </button>
+                            </template>
+                        </div>
+                        <lightning-button variant="base" label={timeModeLabel} onclick={handleTimeMode} class="time-mode"></lightning-button>
+                        <lightning-button variant="base" label={expandLabel} onclick={handleExpandAll} class="expand-all"></lightning-button>
+                        <template lwc:if={canRefold}>
+                            <lightning-button variant="base" label="Fold routine steps" onclick={handleRefold} class="refold"></lightning-button>
+                        </template>
+                    </div>
+                </div>
+
+                <template lwc:if={story.truncated}>
+                    <p class="notice">
+                        <lightning-icon icon-name="utility:info" size="xx-small" class="notice-icon"></lightning-icon>
+                        <span
+                            >This run is long, so only its first 500 steps and 1,000 events are shown.
+                            <c-pluto-link page-reference={relatedStepsPage} label="See every step"></c-pluto-link
+                        ></span>
+                    </p>
+                </template>
+
+                <template lwc:if={expandNote}>
+                    <p class="muted expand-note" role="status">{expandNote}</p>
+                </template>
+
+                <template lwc:if={emptyFilter}>
+                    <p class="muted empty">Nothing to show for this filter.</p>
+                </template>
+
+                <ol class="rail">
+                    <template for:each={timeline} for:item="item">
+                        <li key={item.key} class={item.rowClass} data-key={item.key} tabindex="-1">
+                            <!-- Gap: long idle stretch -->
+                            <template lwc:if={item.isGap}>
+                                <span class="gap-line" aria-hidden="true"></span>
+                                <span class="gap-label">{item.title}</span>
+                            </template>
+
+                            <!-- Group: uneventful steps folded together -->
+                            <template lwc:elseif={item.isGroup}>
+                                <span class={item.nodeClass} aria-hidden="true">
+                                    <lightning-icon icon-name={item.icon} size="xx-small" class="node-icon"></lightning-icon>
+                                </span>
+                                <div class="group">
+                                    <div class="marker">
+                                        <p class="marker-title">{item.title}</p>
+                                        <p class="marker-detail">{item.detail}</p>
+                                    </div>
+                                    <lightning-button
+                                        variant="base"
+                                        label={item.revealLabel}
+                                        data-key={item.key}
+                                        onclick={handleRevealGroup}
+                                        class="group-reveal"></lightning-button>
+                                    <time class="when" title={item.timeTitle}>{item.timeText}</time>
+                                </div>
+                            </template>
+
+                            <!-- Marker: a run-level moment -->
+                            <template lwc:elseif={item.isMarker}>
+                                <span class={item.nodeClass} aria-hidden="true">
+                                    <lightning-icon icon-name={item.icon} size="xx-small" class="node-icon"></lightning-icon>
+                                </span>
+                                <div class="marker-line">
+                                    <div class="marker">
+                                        <p class="marker-title">{item.title}</p>
+                                        <template lwc:if={item.detail}>
+                                            <p class="marker-detail">{item.detail}</p>
+                                        </template>
+                                    </div>
+                                    <time class="when" title={item.timeTitle}>{item.timeText}</time>
+                                </div>
+                            </template>
+
+                            <!-- Step: one model or tool call -->
+                            <template lwc:else>
+                                <span class={item.nodeClass} aria-hidden="true">
+                                    <lightning-icon icon-name={item.icon} size="xx-small" class="node-icon"></lightning-icon>
+                                </span>
+                                <div class={item.cardClass}>
+                                    <button
+                                        class="card-head"
+                                        aria-expanded={item.ariaExpanded}
+                                        aria-controls={item.panelId}
+                                        data-command={item.commandId}
+                                        onclick={handleToggle}>
+                                        <span class="card-main">
+                                            <span class="card-title">{item.title}</span>
+                                            <span class="card-meta">
+                                                <span class="card-kind">{item.kindLabel}</span>
+                                                <template lwc:if={item.subtitle}>
+                                                    <span class="card-subtitle">{item.subtitle}</span>
+                                                </template>
+                                                <template for:each={item.chips} for:item="chip">
+                                                    <span key={chip.key} class="chip" data-kind={chip.kind}>{chip.label}</span>
+                                                </template>
+                                            </span>
+                                        </span>
+                                        <span class="card-side">
+                                            <template lwc:if={item.showStatus}>
+                                                <span class={item.badgeClass}>{item.statusLabel}</span>
+                                            </template>
+                                            <time class="when" title={item.timeTitle}>{item.timeText}</time>
+                                            <lightning-icon icon-name={item.chevron} size="xx-small" class="chevron"></lightning-icon>
+                                        </span>
+                                    </button>
+
+                                    <template lwc:if={item.rationale}>
+                                        <figure class="step-rationale">
+                                            <lightning-icon icon-name="utility:sparkles" size="xx-small" class="step-rationale-icon"></lightning-icon>
+                                            <div>
+                                                <figcaption class="step-rationale-label">
+                                                    The agent's reasoning
+                                                    <lightning-helptext
+                                                        content="The model wrote this when it asked for the call. Agent Core does not check it."
+                                                        class="step-rationale-help"></lightning-helptext>
+                                                </figcaption>
+                                                <blockquote class="step-rationale-text">{item.rationale}</blockquote>
+                                            </div>
+                                        </figure>
+                                    </template>
+
+                                    <template lwc:if={item.error}>
+                                        <div class="step-error">
+                                            <lightning-icon icon-name="utility:error" size="xx-small" class="step-error-icon"></lightning-icon>
+                                            <div>
+                                                <p class="step-error-title">{item.error.title}</p>
+                                                <p class="step-error-detail">{item.error.detail}</p>
+                                                <template lwc:if={item.error.action}>
+                                                    <p class="step-error-detail">{item.error.action}</p>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <template lwc:if={item.hasApprovals}>
+                                        <ul class="approvals">
+                                            <template for:each={item.approvals} for:item="approval">
+                                                <li key={approval.key} class={approval.className}>
+                                                    <lightning-icon icon-name={approval.icon} size="xx-small" class="approval-icon"></lightning-icon>
+                                                    <div class="approval-body">
+                                                        <p class="approval-summary">{approval.summary}</p>
+                                                        <template lwc:if={approval.outcome}>
+                                                            <p class="approval-outcome">{approval.outcome}</p>
+                                                        </template>
+                                                        <template lwc:if={approval.comment}>
+                                                            <blockquote class="approval-comment" title={approval.commentTitle}>{approval.comment}</blockquote>
+                                                        </template>
+                                                        <p class="approval-who">
+                                                            <span>{approval.who}</span>
+                                                            <template lwc:if={approval.decidedText}>
+                                                                <span>{approval.decidedText}</span>
+                                                            </template>
+                                                            <template lwc:if={approval.reason}>
+                                                                <span class="approval-reason">Why: {approval.reason}</span>
+                                                            </template>
+                                                        </p>
+                                                    </div>
+                                                    <c-pluto-link
+                                                        class="approval-link"
+                                                        page-reference={approval.pageReference}
+                                                        label={approval.linkLabel}></c-pluto-link>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </template>
+
+                                    <template lwc:if={item.open}>
+                                        <div class="panel" id={item.panelId}>
+                                            <template lwc:if={item.detailLoading}>
+                                                <div class="panel-loading">
+                                                    <lightning-spinner alternative-text="Loading this step" size="small"></lightning-spinner>
+                                                </div>
+                                            </template>
+                                            <template lwc:elseif={item.detailError}>
+                                                <p class="panel-error">{item.detailError}</p>
+                                            </template>
+                                            <template lwc:elseif={item.detailReady}>
+                                                <template lwc:if={item.detailPurged}>
+                                                    <p class="muted">This step's payloads were removed by retention.</p>
+                                                </template>
+                                                <template lwc:elseif={item.detailHidden}>
+                                                    <p class="muted">You don't have access to this step's payloads.</p>
+                                                </template>
+                                                <template lwc:elseif={item.showCommandPayloads}>
+                                                    <div class="panel-grid">
+                                                        <c-pluto-run-story-payload label={item.inputLabel} value={item.detailInput}></c-pluto-run-story-payload>
+                                                        <c-pluto-run-story-payload
+                                                            label={item.outputLabel}
+                                                            value={item.detailOutput}
+                                                            empty-text={item.outputEmptyText}></c-pluto-run-story-payload>
+                                                    </div>
+                                                </template>
+                                                <template lwc:if={item.hasAttempts}>
+                                                    <div class="attempts-scroll">
+                                                        <table class="attempts">
+                                                            <caption class="attempts-caption">
+                                                                Attempts
+                                                            </caption>
+                                                            <thead>
+                                                                <tr>
+                                                                    <th scope="col">#</th>
+                                                                    <th scope="col">Outcome</th>
+                                                                    <th scope="col">Started</th>
+                                                                    <th scope="col">Took</th>
+                                                                    <th scope="col">Error</th>
+                                                                    <template lwc:if={item.canPickAttempt}>
+                                                                        <th scope="col"><span class="sr-only">Evidence</span></th>
+                                                                    </template>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                <template for:each={item.attempts} for:item="attempt">
+                                                                    <tr key={attempt.key} class={attempt.rowClass}>
+                                                                        <td>{attempt.number}</td>
+                                                                        <td><span class={attempt.outcomeClass}>{attempt.outcome}</span></td>
+                                                                        <td>{attempt.when}</td>
+                                                                        <td>{attempt.duration}</td>
+                                                                        <td class="attempt-error">{attempt.error}</td>
+                                                                        <template lwc:if={item.canPickAttempt}>
+                                                                            <td>
+                                                                                <template lwc:if={attempt.hasEvidence}>
+                                                                                    <button
+                                                                                        class="attempt-view"
+                                                                                        aria-pressed={attempt.selected}
+                                                                                        aria-label={attempt.viewTitle}
+                                                                                        title={attempt.viewTitle}
+                                                                                        data-command={item.commandId}
+                                                                                        data-attempt={attempt.attemptNumber}
+                                                                                        onclick={handleSelectAttempt}>
+                                                                                        {attempt.viewLabel}
+                                                                                    </button>
+                                                                                </template>
+                                                                            </td>
+                                                                        </template>
+                                                                    </tr>
+                                                                </template>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </template>
+                                                <template lwc:if={item.hasCalls}>
+                                                    <template for:each={item.calls} for:item="call">
+                                                        <c-pluto-run-story-call
+                                                            key={call.key}
+                                                            call={call}
+                                                            expanded={call.expanded}
+                                                            tool-ids={item.toolIds}></c-pluto-run-story-call>
+                                                    </template>
+                                                    <template lwc:if={item.evidenceLimited}>
+                                                        <p class="muted">Evidence is shown for the latest three attempts.</p>
+                                                    </template>
+                                                </template>
+                                                <template lwc:elseif={item.evidenceHidden}>
+                                                    <p class="muted evidence-note">
+                                                        <lightning-icon icon-name="utility:lock" size="xx-small"></lightning-icon>
+                                                        Model prompts and responses are hidden. Ask your Salesforce admin for the Agent Kernel Sensitive Data
+                                                        permission set.
+                                                    </p>
+                                                </template>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </li>
+                    </template>
+                </ol>
+            </section>
+        </template>
+    </article>
+</template>

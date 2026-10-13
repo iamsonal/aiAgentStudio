@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExpectedPrincipalUser__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Allowlisted Delegated Principal user snapshotted at run start. Loopback dispatch may resolve only this user.</description>
+    <inlineHelpText>Read-only identity snapshot. Core uses the definition&apos;s delegated principal when set, otherwise the org default.</inlineHelpText>
+    <label>Expected Principal User</label>
+    <referenceTo>User</referenceTo>
+    <relationshipLabel>Expected Principal Agent Runs</relationshipLabel>
+    <relationshipName>ExpectedPrincipalAgentRuns</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

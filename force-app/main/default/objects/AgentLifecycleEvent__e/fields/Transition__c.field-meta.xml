@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Transition__c</fullName>
+    <description>The run status change this event reports: Started, Waiting, Paused, Resumed, Rescued, Succeeded, Failed, Cancelled, Reconciled, CancellationRequested, or ApprovalReassigned. Steps that keep the run Running, such as a tool call, publish no event; they are Agent Events on the run.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Read-only. Filter on this value in a Flow, for example Succeeded to start the next agent. Re-read the run before acting, because events are hints.</inlineHelpText>
+    <isFilteringDisabled>false</isFilteringDisabled>
+    <isNameField>false</isNameField>
+    <isSortingDisabled>false</isSortingDisabled>
+    <label>Transition</label>
+    <length>80</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

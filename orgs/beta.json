@@ -1,20 +1,21 @@
 {
-  "orgName": "aiAgentStudio - Beta Test Org",
-  "edition": "Developer",
-  "settings": {
-    "lightningExperienceSettings": {
-      "enableS1DesktopEnabled": true
-    },
-    "chatterSettings": {
-      "enableChatter": true
-    },
-    "userManagementSettings": {
-      "enableNewProfileUI": true
-    },
-    "securitySettings": {
-      "enableAdminLoginAsAnyUser": true,
-      "sessionSettings": {
-        "forceRelogin": false
-      }
-    }  }
+    "orgName": "aiAgentStudio - Beta Test Org",
+    "edition": "Developer",
+    "settings": {
+        "lightningExperienceSettings": {
+            "enableS1DesktopEnabled": true
+        },
+        "chatterSettings": {
+            "enableChatter": true
+        },
+        "userManagementSettings": {
+            "enableNewProfileUI": true
+        },
+        "securitySettings": {
+            "enableAdminLoginAsAnyUser": true,
+            "sessionSettings": {
+                "forceRelogin": false
+            }
+        }
+    }
 }

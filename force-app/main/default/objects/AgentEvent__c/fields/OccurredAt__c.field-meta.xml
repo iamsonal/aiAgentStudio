@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>OccurredAt__c</fullName>
+    <description>Immutable Occurred At recorded in the agent run event history.</description>
+    <inlineHelpText>Read-only audit evidence. Events are appended by Core and cannot be edited.</inlineHelpText>
+    <label>Occurred At</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

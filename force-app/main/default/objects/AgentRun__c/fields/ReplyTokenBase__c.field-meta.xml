@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ReplyTokenBase__c</fullName>
+    <description>Total Token Count when the person&apos;s latest reply arrived. A conversational run&apos;s token budget counts only the tokens after it.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Read-only. Core sets this when a conversation receives a reply. Blank means the budget counts the whole run.</inlineHelpText>
+    <label>Tokens Before Reply</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

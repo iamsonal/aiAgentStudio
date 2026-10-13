@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>68.0</apiVersion>
+    <description>Agent Channels health on the Pluto Overview: message counts, the hourly sweep, and parked emails to retry. Hidden when Agent Channels is not installed.</description>
+    <isExposed>false</isExposed>
+</LightningComponentBundle>

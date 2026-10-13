@@ -1,0 +1,43 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <lightning-layout>
+        <lightning-layout-item flexibility="auto">
+            <lightning-card title="" class="setup-nav-card">
+                <lightning-vertical-navigation selected-item={selectedNavItemName} onselect={handleNavItem}>
+                    <template for:each={navItems} for:item="navItem">
+                        <lightning-vertical-navigation-item-icon
+                            key={navItem.name}
+                            name={navItem.name}
+                            label={navItem.label}
+                            icon-name={navItem.iconName}></lightning-vertical-navigation-item-icon>
+                    </template>
+                </lightning-vertical-navigation>
+            </lightning-card>
+        </lightning-layout-item>
+
+        <lightning-layout-item flexibility="auto" size="10" small-device-size="12" medium-device-size="9" large-device-size="10" class="setup-content">
+            <template if:true={isOverview}>
+                <c-agent-core-health></c-agent-core-health>
+                <c-pluto-channels-health></c-pluto-channels-health>
+            </template>
+            <template if:true={isPlaceholderSection}>
+                <lightning-card title={selectedNavItem.label}>
+                    <p class="slds-p-horizontal_small">{selectedNavItem.description}</p>
+                    <p class="slds-p-horizontal_small slds-m-top_small slds-text-color_weak">Section content lands here in a later change.</p>
+                </lightning-card>
+            </template>
+        </lightning-layout-item>
+    </lightning-layout>
+</template>

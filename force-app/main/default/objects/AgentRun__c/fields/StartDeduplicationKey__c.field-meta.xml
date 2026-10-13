@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>StartDeduplicationKey__c</fullName>
+    <caseSensitive>true</caseSensitive>
+    <description>System-generated SHA-256 key that uniquely scopes an external correlation key to one agent definition.</description>
+    <externalId>true</externalId>
+    <inlineHelpText>Read-only. Core uses this hash to prevent concurrent duplicate starts for the same definition and external correlation key.</inlineHelpText>
+    <label>Start Deduplication Key</label>
+    <length>64</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

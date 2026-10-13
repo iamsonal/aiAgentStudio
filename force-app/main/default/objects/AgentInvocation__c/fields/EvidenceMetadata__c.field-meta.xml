@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EvidenceMetadata__c</fullName>
+    <description>Non-sensitive lengths, truncation, and redaction metadata for each evidence payload.</description>
+    <inlineHelpText>Bounded metadata about evidence capture, protection, and source.</inlineHelpText>
+    <label>Evidence Metadata</label>
+    <length>32768</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>5</visibleLines>
+</CustomField>

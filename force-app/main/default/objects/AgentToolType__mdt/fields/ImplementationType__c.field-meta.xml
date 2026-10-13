@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ImplementationType__c</fullName>
+    <description>Whose logic a tool of this type runs: Standard for Pluto Core&apos;s own tools, Flow for an admin-built Flow that a standard tool runs, Apex for a custom ITool class. Core copies it to each tool&apos;s Implementation Type so reports and reviews can separate them.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Standard and Flow are for the tool types Pluto Core ships. Choose Apex for a custom tool type.</inlineHelpText>
+    <label>Implementation Type</label>
+    <required>true</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Standard</fullName>
+                <default>false</default>
+                <label>Standard</label>
+            </value>
+            <value>
+                <fullName>Flow</fullName>
+                <default>false</default>
+                <label>Flow</label>
+            </value>
+            <value>
+                <fullName>Apex</fullName>
+                <default>true</default>
+                <label>Apex</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -1,0 +1,62 @@
+/*
+ * This file is part of Pluto. It is licensed under the GNU Affero General
+ * Public License, version 3 only. See the LICENSE file at the root of this
+ * repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+ *
+ * The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+ * uses only Pluto's public interface stay under its own license.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * Copyright (c) 2026 Sonal
+ */
+
+.json-preview {
+    border: 1px solid var(--lwc-colorBorder, #dddbda);
+    border-radius: 0.25rem;
+    background: var(--lwc-colorBackgroundAlt, #f3f3f3);
+}
+
+.json-preview__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 0.875rem;
+    border-bottom: 1px solid var(--lwc-colorBorder, #dddbda);
+    background: var(--lwc-colorBackground, #ffffff);
+}
+
+.json-preview__title {
+    margin: 0;
+    color: var(--lwc-colorTextDefault, #181818);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.json-preview__description {
+    margin: 0.125rem 0 0;
+    color: var(--lwc-colorTextWeak, #706e6b);
+    font-size: 0.75rem;
+}
+
+.json-preview__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.json-preview__code {
+    background: var(--lwc-colorBackgroundAlt, #f3f3f3);
+}
+
+.json-preview__code pre {
+    margin: 0;
+    padding: 0.875rem;
+    color: var(--lwc-colorTextDefault, #181818);
+    font-family: SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    white-space: pre;
+}

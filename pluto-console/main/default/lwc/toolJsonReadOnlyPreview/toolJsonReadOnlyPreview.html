@@ -1,0 +1,34 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <section class="json-preview" aria-label={label}>
+        <div class="json-preview__header">
+            <div>
+                <h3 class="json-preview__title">{label}</h3>
+                <p class="json-preview__description">{description}</p>
+            </div>
+            <div class="json-preview__actions">
+                <lightning-button-icon
+                    icon-name="utility:copy"
+                    alternative-text={copyLabel}
+                    title={copyLabel}
+                    variant="border-filled"
+                    onclick={handleCopy}></lightning-button-icon>
+            </div>
+        </div>
+        <div class="json-preview__code" style={containerStyle}>
+            <pre>{formattedValue}</pre>
+        </div>
+    </section>
+</template>

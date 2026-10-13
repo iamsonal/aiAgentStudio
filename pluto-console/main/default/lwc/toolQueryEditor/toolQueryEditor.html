@@ -1,0 +1,77 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <div class="slds-form-element">
+        <label class="slds-form-element__label" for="query">
+            <template if:true={required}><abbr class="slds-required" title="required">* </abbr></template>{label}
+        </label>
+        <lightning-helptext
+            content="Each :name in WHERE becomes an input the model fills in. Pluto fills in these itself, so they are never inputs: :anchorId (the run's record), :initiatingUserId, :principalUserId, :today, and :now. The model never sees or changes the query."></lightning-helptext>
+        <div class="slds-form-element__control slds-is-relative">
+            <textarea
+                id="query"
+                class="slds-textarea query-text"
+                rows="6"
+                spellcheck="false"
+                placeholder="SELECT CaseNumber, Subject, Status FROM Case WHERE AccountId = :anchorId AND Status IN :statuses ORDER BY CreatedDate DESC LIMIT 10"
+                oninput={handleQueryInput}
+                onkeydown={handleQueryKeydown}
+                onkeyup={handleCaretMove}
+                onclick={handleQueryClick}
+                onblur={handleQueryBlur}
+                onscroll={handleQueryScroll}
+                disabled={disabled}
+                aria-autocomplete="list"
+                aria-controls="query-suggestions"
+                aria-activedescendant={activeOptionId}
+                aria-describedby="query-help"></textarea>
+            <div class="query-mirror" aria-hidden="true" lwc:dom="manual"></div>
+            <template if:true={showSuggestions}>
+                <div
+                    id="query-suggestions"
+                    class="slds-dropdown slds-dropdown_left slds-dropdown_length-7 query-suggestions"
+                    style={suggestionStyle}
+                    role="listbox"
+                    aria-label="Query suggestions">
+                    <ul class="slds-listbox slds-listbox_vertical" role="presentation">
+                        <template for:each={suggestionOptions} for:item="option">
+                            <li key={option.id} role="presentation" class="slds-listbox__item">
+                                <div
+                                    id={option.id}
+                                    class={option.className}
+                                    role="option"
+                                    aria-selected={option.ariaSelected}
+                                    data-index={option.index}
+                                    onmousedown={handleOptionMouseDown}>
+                                    <span class="slds-media__body">
+                                        <span class="slds-listbox__option-text slds-listbox__option-text_entity query-option-value">{option.label}</span>
+                                        <span class="slds-listbox__option-meta slds-listbox__option-meta_entity">{option.detail}</span>
+                                    </span>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                    <template if:true={suggestionMessage}>
+                        <p class="slds-p-horizontal_small slds-p-vertical_x-small slds-text-color_weak query-suggestion-message">{suggestionMessage}</p>
+                    </template>
+                </div>
+            </template>
+            <span class="slds-assistive-text" aria-live="polite">{suggestionStatus}</span>
+        </div>
+        <div class="slds-form-element__help slds-text-color_weak" id="query-help">
+            One query that returns records, not totals. It runs with the run user's access, and the model gets at most 200 records. Enter or Tab inserts a
+            suggestion, Shift+Enter starts a new line, and Esc closes the list.
+        </div>
+    </div>
+</template>

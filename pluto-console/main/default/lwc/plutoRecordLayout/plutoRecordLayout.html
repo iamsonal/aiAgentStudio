@@ -1,0 +1,297 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <template if:false={hideHeader}>
+        <div class="slds-page-header slds-page-header_record-home slds-m-bottom_small">
+            <div class="slds-grid primaryFieldRow">
+                <div class="slds-grid slds-col slds-has-flexi-truncate">
+                    <div class="slds-media slds-no-space">
+                        <div class="slds-media__figure">
+                            <template if:true={headerIconUrl}>
+                                <span class={headerIconContainerClass}>
+                                    <img src={headerIconUrl} class="record-page__object-icon" alt={objectLabel} title={objectLabel} />
+                                </span>
+                            </template>
+                            <template if:false={headerIconUrl}>
+                                <lightning-icon icon-name={iconName} size="medium" alternative-text={objectLabel}></lightning-icon>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="slds-media__body">
+                        <h1>
+                            <div class="entityNameTitle slds-line-height_reset">
+                                <span>{objectLabel}</span>
+                            </div>
+                            <div class="slds-page-header__title slds-m-right_small slds-align-middle slds-line-clamp slds-is-relative">
+                                <template if:true={isHeaderLoading}>
+                                    <lightning-spinner alternative-text="Loading record" size="small"></lightning-spinner>
+                                </template>
+                                <template if:false={isHeaderLoading}>
+                                    <span>{headerTitle}</span>
+                                </template>
+                            </div>
+                        </h1>
+                    </div>
+                </div>
+                <div class="slds-col slds-no-flex slds-grid slds-grid_vertical-align-center">
+                    <template if:true={showHeaderSaveErrors}>
+                        <c-pluto-save-error-popover
+                            class="slds-m-right_x-small"
+                            placement="below"
+                            page-errors={pageErrors}
+                            error-fields={errorFields}
+                            open={isSaveErrorOpen}
+                            ontoggle={handleSaveErrorToggle}
+                            onclose={handleSaveErrorClose}
+                            onfieldselect={handleSaveErrorFieldSelect}></c-pluto-save-error-popover>
+                    </template>
+                    <lightning-button-group>
+                        <template if:true={isReadOnly}>
+                            <lightning-button label="Back to List" variant="neutral" onclick={handleBack}></lightning-button>
+                            <lightning-button label="Edit" variant="neutral" onclick={handleEdit}></lightning-button>
+                        </template>
+                        <template if:false={isReadOnly}>
+                            <lightning-button label="Cancel" variant="neutral" onclick={handleCancel}></lightning-button>
+                            <lightning-button label="Save" variant="brand" data-location="header" onclick={handleSave} disabled={cannotSave}></lightning-button>
+                        </template>
+                    </lightning-button-group>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <article class={cardClass}>
+        <template if:false={isReadOnly}>
+            <div class="record-required-legend"><abbr class="slds-required" title="required">*</abbr> = Required Information</div>
+        </template>
+        <div class={bodyClass}>
+            <template if:true={showSpinner}>
+                <lightning-spinner alternative-text="Loading" size="medium" variant="brand"></lightning-spinner>
+            </template>
+
+            <template if:true={hasLoadError}>
+                <div class="slds-scoped-notification slds-media slds-media_center slds-theme_error slds-m-around_small" role="alert" data-id="load-error">
+                    <div class="slds-media__figure">
+                        <lightning-icon icon-name="utility:error" size="small" variant="inverse" alternative-text="Error"></lightning-icon>
+                    </div>
+                    <div class="slds-media__body">
+                        <p>{loadError}</p>
+                    </div>
+                </div>
+            </template>
+
+            <template if:true={showSections}>
+                <lightning-record-edit-form
+                    object-api-name={objectApiName}
+                    record-id={recordId}
+                    record-type-id={layoutRecordTypeId}
+                    onsubmit={handleFormSubmit}>
+                    <template for:each={sections} for:item="section">
+                        <section key={section.key} class={section.sectionClass} data-id="layout-section" data-section={section.key}>
+                            <template if:true={section.showToggle}>
+                                <h3 class="slds-section__title">
+                                    <button
+                                        type="button"
+                                        class="slds-button slds-section__title-action section-control"
+                                        aria-controls={section.contentId}
+                                        aria-expanded={section.isOpen}
+                                        data-section={section.key}
+                                        onclick={handleToggleSection}>
+                                        <lightning-icon
+                                            icon-name="utility:chevrondown"
+                                            size="x-small"
+                                            class="slds-section__title-action-icon slds-m-right_x-small"></lightning-icon>
+                                        <span class="slds-truncate" title={section.label}>{section.label}</span>
+                                    </button>
+                                </h3>
+                            </template>
+                            <template if:true={section.showPlainHeading}>
+                                <h3 class="slds-section__title slds-theme_shade section-heading_plain">
+                                    <span class="slds-truncate slds-p-horizontal_small" title={section.label}>{section.label}</span>
+                                </h3>
+                            </template>
+                            <template if:true={section.isOpen}>
+                                <div id={section.contentId} class="slds-section__content record-section-body">
+                                    <div class="slds-form" role="list">
+                                        <template for:each={section.rows} for:item="row">
+                                            <div key={row.key} class="slds-grid slds-wrap record-form-row">
+                                                <template for:each={row.cells} for:item="item">
+                                                    <div
+                                                        key={item.cellKey}
+                                                        class={item.cellClass}
+                                                        role="listitem"
+                                                        data-id={item.dataId}
+                                                        data-field={item.fieldApiName}>
+                                                        <template if:false={item.isBlank}>
+                                                            <div class={item.elementClass}>
+                                                                <template if:true={item.showLabel}>
+                                                                    <div class="slds-form-element__label">
+                                                                        <template if:true={item.isRequired}>
+                                                                            <abbr class="slds-required" title="required">*</abbr>
+                                                                        </template>
+                                                                        {item.label}
+                                                                    </div>
+                                                                    <template if:true={item.hasHelpText}>
+                                                                        <lightning-helptext content={item.helpText}></lightning-helptext>
+                                                                    </template>
+                                                                </template>
+                                                                <div class="slds-form-element__control record-field-control">
+                                                                    <template if:true={item.isInputField}>
+                                                                        <lightning-input-field
+                                                                            class="field-input"
+                                                                            data-field={item.fieldApiName}
+                                                                            field-name={item.fieldApiName}
+                                                                            value={item.value}
+                                                                            required={item.isRequired}
+                                                                            disabled={item.isLocked}
+                                                                            variant={item.inputFieldVariant}
+                                                                            onchange={handleInputFieldChange}></lightning-input-field>
+                                                                    </template>
+                                                                    <template if:true={item.isOptionsInput}>
+                                                                        <lightning-combobox
+                                                                            class="field-input"
+                                                                            data-field={item.fieldApiName}
+                                                                            name={item.fieldApiName}
+                                                                            label={item.label}
+                                                                            variant="label-hidden"
+                                                                            options={item.options}
+                                                                            value={item.value}
+                                                                            required={item.isRequired}
+                                                                            disabled={item.isLocked}
+                                                                            onchange={handleOptionsChange}></lightning-combobox>
+                                                                    </template>
+                                                                    <template if:true={item.isSmartLookupInput}>
+                                                                        <c-smart-lookup
+                                                                            class="field-input"
+                                                                            data-field={item.fieldApiName}
+                                                                            label={item.label}
+                                                                            variant="label-hidden"
+                                                                            options={item.options}
+                                                                            value={item.value}
+                                                                            required={item.isRequired}
+                                                                            disabled={item.isLocked}
+                                                                            onsearch={handleSmartLookupSearch}
+                                                                            onchange={handleSmartLookupChange}></c-smart-lookup>
+                                                                    </template>
+                                                                    <template if:true={item.isMarkdownInput}>
+                                                                        <c-toast-ui-markdown-editor
+                                                                            data-field={item.fieldApiName}
+                                                                            value={item.value}
+                                                                            onchange={handleMarkdownChange}></c-toast-ui-markdown-editor>
+                                                                    </template>
+                                                                    <template if:true={item.isJsonInput}>
+                                                                        <c-json-editor
+                                                                            class="field-input"
+                                                                            data-field={item.fieldApiName}
+                                                                            label={item.label}
+                                                                            variant="label-hidden"
+                                                                            value={item.value}
+                                                                            required={item.isRequired}
+                                                                            disabled={item.isLocked}
+                                                                            object-only={item.jsonObjectOnly}
+                                                                            max-length={item.maxLength}
+                                                                            onchange={handleJsonChange}></c-json-editor>
+                                                                    </template>
+                                                                    <template if:true={item.isOutputField}>
+                                                                        <lightning-output-field
+                                                                            class="slds-grow record-field-value"
+                                                                            data-field={item.fieldApiName}
+                                                                            field-name={item.fieldApiName}
+                                                                            variant="label-hidden"></lightning-output-field>
+                                                                    </template>
+                                                                    <template if:true={item.isTextOutput}>
+                                                                        <div
+                                                                            class="slds-form-element__static slds-grow record-field-value record-field-value_text"
+                                                                            data-id="text-output">
+                                                                            {item.displayValue}
+                                                                        </div>
+                                                                    </template>
+                                                                    <template if:true={item.isMarkdownOutput}>
+                                                                        <div
+                                                                            class="slds-form-element__static slds-grow record-field-value record-field-value_padded">
+                                                                            <c-markdown-viewer value={item.value}></c-markdown-viewer>
+                                                                        </div>
+                                                                    </template>
+                                                                    <template if:true={item.isJsonOutput}>
+                                                                        <div
+                                                                            class="slds-form-element__static slds-grow record-field-value record-field-value_padded">
+                                                                            <c-json-editor
+                                                                                label={item.label}
+                                                                                variant="label-hidden"
+                                                                                value={item.value}
+                                                                                disabled></c-json-editor>
+                                                                        </div>
+                                                                    </template>
+                                                                    <template if:true={item.canInlineEdit}>
+                                                                        <button
+                                                                            type="button"
+                                                                            class="slds-button slds-button_icon inline-edit-action"
+                                                                            title={item.editLabel}
+                                                                            data-field={item.fieldApiName}
+                                                                            onclick={handleInlineEdit}>
+                                                                            <lightning-icon
+                                                                                icon-name="utility:edit"
+                                                                                size="xx-small"
+                                                                                alternative-text={item.editLabel}></lightning-icon>
+                                                                        </button>
+                                                                    </template>
+                                                                </div>
+                                                                <template if:true={item.showErrorText}>
+                                                                    <div class="slds-form-element__help" data-id="field-error" data-field={item.fieldApiName}>
+                                                                        {item.errorMessage}
+                                                                    </div>
+                                                                </template>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </section>
+                    </template>
+                </lightning-record-edit-form>
+            </template>
+            <div class={slotClass} data-id="sections-after">
+                <slot name="form-sections-after"></slot>
+            </div>
+
+            <template if:false={isReadOnly}>
+                <div class={footerClass} data-id="docked-footer">
+                    <template if:true={showFooterSaveErrors}>
+                        <c-pluto-save-error-popover
+                            class="slds-m-right_x-small"
+                            placement="above"
+                            page-errors={pageErrors}
+                            error-fields={errorFields}
+                            open={isSaveErrorOpen}
+                            ontoggle={handleSaveErrorToggle}
+                            onclose={handleSaveErrorClose}
+                            onfieldselect={handleSaveErrorFieldSelect}></c-pluto-save-error-popover>
+                    </template>
+                    <ul class="slds-button-group-row">
+                        <li class="slds-button-group-item">
+                            <lightning-button label="Cancel" variant="neutral" onclick={handleCancel}></lightning-button>
+                        </li>
+                        <li class="slds-button-group-item">
+                            <lightning-button label="Save" variant="brand" data-location="footer" onclick={handleSave} disabled={cannotSave}></lightning-button>
+                        </li>
+                    </ul>
+                </div>
+            </template>
+        </div>
+    </article>
+</template>

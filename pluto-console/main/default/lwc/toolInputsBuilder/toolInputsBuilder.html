@@ -1,0 +1,182 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <template if:true={unreadable}>
+        <p class="slds-text-color_error slds-text-body_small slds-m-bottom_small" data-unreadable>
+            The saved Input Schema is not a JSON object of inputs. Click Edit as JSON to fix it, or add inputs here to replace it.
+        </p>
+    </template>
+    <template if:false={hasInputs}>
+        <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small" data-empty>
+            No inputs yet. The model sends nothing to this tool until you add one.
+        </p>
+    </template>
+    <template for:each={rows} for:item="row">
+        <div key={row.id} class={row.rowClass} data-input={row.name}>
+            <div class="slds-grid slds-gutters_x-small slds-wrap slds-grid_vertical-align-end">
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_4-of-12">
+                    <lightning-input
+                        label={row.nameLabel}
+                        value={row.name}
+                        placeholder="orderNumber"
+                        disabled={readOnly}
+                        data-id={row.id}
+                        data-name-input
+                        onchange={handleNameChange}></lightning-input>
+                </div>
+                <div class="slds-col slds-size_1-of-2 slds-medium-size_3-of-12">
+                    <lightning-combobox
+                        label="Type"
+                        options={typeOptions}
+                        value={row.kind}
+                        disabled={readOnly}
+                        data-id={row.id}
+                        data-type-input
+                        onchange={handleTypeChange}></lightning-combobox>
+                </div>
+                <template if:true={row.isList}>
+                    <div class="slds-col slds-size_1-of-2 slds-medium-size_3-of-12">
+                        <lightning-combobox
+                            label="List of"
+                            options={itemTypeOptions}
+                            value={row.itemKind}
+                            disabled={readOnly}
+                            data-id={row.id}
+                            data-item-type-input
+                            onchange={handleItemTypeChange}></lightning-combobox>
+                    </div>
+                </template>
+                <div class="slds-col slds-no-flex slds-p-bottom_x-small">
+                    <lightning-input
+                        type="checkbox"
+                        label="Required"
+                        checked={row.required}
+                        disabled={readOnly}
+                        data-id={row.id}
+                        data-required-input
+                        onchange={handleRequiredChange}></lightning-input>
+                </div>
+                <template if:false={readOnly}>
+                    <div class="slds-col slds-no-flex slds-col_bump-left">
+                        <lightning-button-group>
+                            <lightning-button-icon
+                                icon-name="utility:arrowup"
+                                alternative-text="Move up"
+                                title="Move up"
+                                disabled={row.moveUpDisabled}
+                                data-id={row.id}
+                                data-direction="up"
+                                onclick={handleMove}></lightning-button-icon>
+                            <lightning-button-icon
+                                icon-name="utility:arrowdown"
+                                alternative-text="Move down"
+                                title="Move down"
+                                disabled={row.moveDownDisabled}
+                                data-id={row.id}
+                                data-direction="down"
+                                onclick={handleMove}></lightning-button-icon>
+                            <lightning-button-icon
+                                icon-name="utility:delete"
+                                alternative-text="Remove input"
+                                title="Remove input"
+                                data-id={row.id}
+                                data-remove
+                                onclick={handleRemove}></lightning-button-icon>
+                        </lightning-button-group>
+                    </div>
+                </template>
+            </div>
+            <lightning-textarea
+                label="Description the model reads"
+                value={row.description}
+                placeholder="What the model should send, with an example."
+                max-length="2000"
+                disabled={readOnly}
+                data-id={row.id}
+                data-description-input
+                class="description"
+                onchange={handleDescriptionChange}></lightning-textarea>
+            <div class="slds-grid slds-gutters_x-small slds-wrap">
+                <template if:true={row.isText}>
+                    <div class="slds-col slds-size_1-of-2 slds-medium-size_3-of-12">
+                        <lightning-input
+                            type="number"
+                            label="Max length"
+                            value={row.maxLength}
+                            min="1"
+                            disabled={readOnly}
+                            data-id={row.id}
+                            data-field="maxLength"
+                            onchange={handleNumberChange}></lightning-input>
+                    </div>
+                </template>
+                <template if:true={row.isNumeric}>
+                    <div class="slds-col slds-size_1-of-2 slds-medium-size_3-of-12">
+                        <lightning-input
+                            type="number"
+                            step="any"
+                            label="Minimum"
+                            value={row.minimum}
+                            disabled={readOnly}
+                            data-id={row.id}
+                            data-field="minimum"
+                            onchange={handleNumberChange}></lightning-input>
+                    </div>
+                    <div class="slds-col slds-size_1-of-2 slds-medium-size_3-of-12">
+                        <lightning-input
+                            type="number"
+                            step="any"
+                            label="Maximum"
+                            value={row.maximum}
+                            disabled={readOnly}
+                            data-id={row.id}
+                            data-field="maximum"
+                            onchange={handleNumberChange}></lightning-input>
+                    </div>
+                </template>
+                <template if:true={row.isPicklist}>
+                    <div class="slds-col slds-size_1-of-1">
+                        <lightning-textarea
+                            label="Values, one per line"
+                            value={row.valuesText}
+                            disabled={readOnly}
+                            data-id={row.id}
+                            data-values-input
+                            onchange={handleValuesChange}></lightning-textarea>
+                    </div>
+                </template>
+            </div>
+            <template if:true={row.hasErrors}>
+                <ul class="slds-text-color_error slds-text-body_small slds-m-top_xx-small" data-errors>
+                    <template for:each={row.errors} for:item="error">
+                        <li key={error.key}>{error.message}</li>
+                    </template>
+                </ul>
+            </template>
+            <template if:true={row.canAddInside}>
+                <lightning-button
+                    variant="base"
+                    label="Add input to this group"
+                    icon-name="utility:add"
+                    class="slds-m-top_xx-small"
+                    data-id={row.id}
+                    data-add-inside
+                    onclick={handleAddInside}></lightning-button>
+            </template>
+        </div>
+    </template>
+    <template if:false={readOnly}>
+        <lightning-button label="Add input" icon-name="utility:add" data-add onclick={handleAdd}></lightning-button>
+    </template>
+</template>

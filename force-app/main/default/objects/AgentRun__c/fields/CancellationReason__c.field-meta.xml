@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CancellationReason__c</fullName>
+    <description>Bounded reason supplied by the authorized caller requesting cancellation.</description>
+    <inlineHelpText>Operational reason for an immediate or pending cancellation.</inlineHelpText>
+    <label>Cancellation Reason</label>
+    <length>1000</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

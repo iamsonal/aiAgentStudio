@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>NativeEvidence__c</fullName>
+    <description>Optional protected provider-native request and response evidence supplied by an extension.</description>
+    <inlineHelpText>Retention-protected native request or response evidence.</inlineHelpText>
+    <label>Native Evidence</label>
+    <length>131072</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>10</visibleLines>
+</CustomField>

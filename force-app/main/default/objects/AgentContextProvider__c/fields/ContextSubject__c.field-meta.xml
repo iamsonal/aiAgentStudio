@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ContextSubject__c</fullName>
+    <description>Run identity or record supplied to a Field Set provider.</description>
+    <inlineHelpText>For Field Set, choose Anchor Record (the run&apos;s anchor record) or Initiating User (the person who started the run). Global is for custom Apex providers.</inlineHelpText>
+    <label>Context Subject</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Anchor Record</fullName>
+                <default>false</default>
+                <label>Anchor Record</label>
+            </value>
+            <value>
+                <fullName>Initiating User</fullName>
+                <default>false</default>
+                <label>Initiating User</label>
+            </value>
+            <value>
+                <fullName>Global</fullName>
+                <default>false</default>
+                <label>Global</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

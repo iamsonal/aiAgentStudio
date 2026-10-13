@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MaxModelCalls__c</fullName>
+    <defaultValue>10</defaultValue>
+    <description>Maximum model invocations allowed for one run, or for each reply of a conversational agent.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Maximum model calls for one run. For an agent with Wait for Reply, the limit applies to each reply. Use a whole number from 1 to 9,999. When the next step would exceed the limit, the run pauses; increase the budget and rescue it to continue.</inlineHelpText>
+    <label>Max Model Calls</label>
+    <precision>4</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

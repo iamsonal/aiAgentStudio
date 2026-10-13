@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Authorizes a user to decide Agent Approvals assigned to them or their queues, or to reconcile unknown tool outcomes.</description>
+    <isLicensed>false</isLicensed>
+    <label>Agent Kernel Human Decision</label>
+</CustomPermission>

@@ -1,0 +1,1401 @@
+/*
+ * This file is part of Pluto. It is licensed under the GNU Affero General
+ * Public License, version 3 only. See the LICENSE file at the root of this
+ * repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+ *
+ * The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+ * uses only Pluto's public interface stay under its own license.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * Copyright (c) 2026 Sonal
+ */
+
+/*
+ * Tones map to SLDS styling hooks with fallbacks, so the story follows the
+ * org's theme. Panels are flat and bordered like standard Lightning cards;
+ * colour carries status only, with one hue each for model, tool, and approval time.
+ */
+:host {
+    display: block;
+    --story-radius: 0.25rem;
+    --story-border: var(--slds-g-color-border-base-1, #e5e5e5);
+    --story-surface: var(--slds-g-color-neutral-base-100, #ffffff);
+    --story-subtle: var(--slds-g-color-neutral-base-95, #f3f3f3);
+    --story-text: var(--slds-g-color-neutral-base-10, #181818);
+    --story-muted: var(--slds-g-color-neutral-base-40, #5c5c5c);
+
+    --tone-success: var(--slds-g-color-success-base-40, #2e844a);
+    --tone-success-bg: var(--slds-g-color-success-base-95, #ebf7e6);
+    --tone-warning: var(--slds-g-color-warning-base-40, #8c4b02);
+    --tone-warning-bg: var(--slds-g-color-warning-base-95, #fef1e0);
+    --tone-error: var(--slds-g-color-error-base-40, #ba0517);
+    --tone-error-bg: var(--slds-g-color-error-base-95, #fef1ee);
+    --tone-info: var(--slds-g-color-brand-base-50, #0176d3);
+    --tone-info-bg: var(--slds-g-color-brand-base-95, #eef4ff);
+    --tone-waiting: var(--slds-g-color-palette-violet-50, #7f56d9);
+    --tone-waiting-bg: var(--slds-g-color-palette-violet-95, #f7f1fe);
+    --tone-neutral: var(--slds-g-color-neutral-base-50, #747474);
+    --tone-neutral-bg: var(--slds-g-color-neutral-base-95, #f3f3f3);
+
+    --kind-model: var(--tone-info);
+    --kind-tool: var(--slds-g-color-neutral-base-30, #444444);
+    --kind-approval: var(--tone-waiting);
+    --kind-paused: var(--slds-g-color-warning-base-50, #a96404);
+    --kind-other: var(--slds-g-color-neutral-base-80, #d6d9de);
+}
+
+/* Layout follows the space the component gets, not the window, so a sidebar placement works too. */
+.story {
+    container-type: inline-size;
+    container-name: story;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    color: var(--story-text);
+}
+
+.story > *:not(.sr-only) {
+    border: 1px solid var(--story-border);
+    border-radius: var(--story-radius);
+    background: var(--story-surface);
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.muted {
+    margin: 0;
+    color: var(--story-muted);
+    font-size: 0.8125rem;
+}
+
+.section-title {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--story-text);
+}
+
+/* ------------------------------------------------------------ loading */
+
+.loading {
+    position: relative;
+    min-height: 8rem;
+}
+
+.story > .load-error {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-color: var(--tone-error);
+    background: var(--tone-error-bg);
+    color: var(--tone-error);
+    font-size: 0.8125rem;
+}
+
+.load-error-icon {
+    --slds-c-icon-color-foreground-default: var(--tone-error);
+}
+
+/* ------------------------------------------------------------ header */
+
+.head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+}
+
+/* The answer carries the status colour; the rest of the header stays neutral. */
+.head_success {
+    --head-tone: var(--tone-success);
+}
+.head_warning {
+    --head-tone: var(--tone-warning);
+}
+.head_error {
+    --head-tone: var(--tone-error);
+}
+.head_info {
+    --head-tone: var(--tone-info);
+}
+.head_waiting {
+    --head-tone: var(--tone-waiting);
+}
+.head_neutral {
+    --head-tone: var(--tone-neutral);
+}
+
+.head-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.head-title {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.eyebrow {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--story-muted);
+}
+
+.head-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+}
+
+.run-name {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.status {
+    display: inline-flex;
+    align-items: center;
+    align-self: center;
+    padding: 0 0.5rem;
+    border-radius: 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.25rem;
+}
+
+.status_success {
+    color: var(--tone-success);
+    background: var(--tone-success-bg);
+}
+.status_warning {
+    color: var(--tone-warning);
+    background: var(--tone-warning-bg);
+}
+.status_error {
+    color: var(--tone-error);
+    background: var(--tone-error-bg);
+}
+.status_info {
+    color: var(--tone-info);
+    background: var(--tone-info-bg);
+}
+.status_waiting {
+    color: var(--tone-waiting);
+    background: var(--tone-waiting-bg);
+}
+.status_neutral {
+    color: var(--story-muted);
+    background: var(--tone-neutral-bg);
+}
+
+/* Events that changed the outcome sit beside the status, so a glance doesn't read a rejected refund as a smooth run. */
+.highlight {
+    display: inline-flex;
+    align-items: center;
+    align-self: center;
+    margin: 0;
+    padding: 0 0.5rem;
+    border: 1px solid currentColor;
+    border-radius: 0.75rem;
+    background: transparent;
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.125rem;
+    cursor: pointer;
+}
+
+.highlight:hover {
+    text-decoration: underline;
+}
+
+.highlight:focus-visible {
+    outline: 2px solid var(--tone-info);
+    outline-offset: 1px;
+}
+
+.highlight_error {
+    color: var(--tone-error);
+    background: var(--tone-error-bg);
+}
+.highlight_warning {
+    color: var(--tone-warning);
+    background: var(--tone-warning-bg);
+}
+
+.head-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.live,
+.updated {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.75rem;
+    color: var(--story-muted);
+}
+
+.live {
+    color: var(--tone-success);
+    font-weight: 600;
+}
+
+.live-dot {
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.head-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem 1.25rem;
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--story-muted);
+}
+
+.meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3125rem;
+}
+
+.meta-item_muted {
+    font-size: 0.75rem;
+}
+
+.meta-icon {
+    --slds-c-icon-color-foreground-default: var(--story-muted);
+}
+
+/*
+ * One strip of measures split by hairlines. Each tile draws its divider on its
+ * left; the strip clips the first column's, so a wrapped row starts clean.
+ */
+.kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+    row-gap: 1rem;
+    overflow: hidden;
+    padding-top: 1rem;
+    border-top: 1px solid var(--story-border);
+}
+
+/* Every tile reads top to bottom: what it is, the number, then any limit. */
+.kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+    padding: 0 1rem;
+    box-shadow: -1px 0 0 0 var(--story-border);
+}
+
+.kpi-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.125rem;
+    font-size: 0.75rem;
+    color: var(--story-muted);
+    white-space: nowrap;
+}
+
+.kpi-help {
+    --slds-c-icon-color-foreground-default: var(--story-muted);
+}
+
+.kpi-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.kpi-value_high {
+    color: var(--tone-warning);
+}
+.kpi-value_full {
+    color: var(--tone-error);
+}
+
+.kpi-note {
+    font-size: 0.75rem;
+    color: var(--story-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.meter-warn {
+    --slds-c-icon-color-foreground-default: var(--tone-error);
+}
+
+.meter {
+    display: block;
+    height: 0.25rem;
+    margin-top: auto;
+    border-radius: 0.125rem;
+    background: var(--story-border);
+    overflow: hidden;
+}
+
+.meter-fill {
+    display: block;
+    height: 100%;
+    background: var(--tone-info);
+}
+
+.meter-fill_high {
+    background: var(--tone-warning);
+}
+.meter-fill_full {
+    background: var(--tone-error);
+}
+
+/* ------------------------------------------------------------ attention */
+
+.attention {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: start;
+    gap: 0.875rem;
+    padding: 1rem 1.25rem;
+}
+
+.story > .attention {
+    background: var(--tone-neutral-bg);
+}
+.story > .attention_warning {
+    border-color: var(--tone-warning);
+    background: var(--tone-warning-bg);
+}
+.story > .attention_error {
+    border-color: var(--tone-error);
+    background: var(--tone-error-bg);
+}
+.story > .attention_waiting {
+    border-color: var(--tone-waiting);
+    background: var(--tone-waiting-bg);
+}
+
+.attention_warning .attention-icon {
+    --slds-c-icon-color-foreground-default: var(--tone-warning);
+}
+.attention_error .attention-icon {
+    --slds-c-icon-color-foreground-default: var(--tone-error);
+}
+.attention_waiting .attention-icon {
+    --slds-c-icon-color-foreground-default: var(--tone-waiting);
+}
+
+.attention-body p {
+    margin: 0;
+}
+
+.attention-heading {
+    font-size: 0.75rem;
+    color: var(--story-muted);
+}
+
+.attention-title {
+    margin-top: 0.125rem !important;
+    font-size: 0.9375rem;
+    font-weight: 700;
+}
+
+.attention-detail {
+    margin-top: 0.25rem !important;
+    font-size: 0.875rem;
+}
+
+.attention-action {
+    display: flex;
+    gap: 0.375rem;
+    margin-top: 0.5rem !important;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.attention-action-icon {
+    margin-top: 0.1875rem;
+}
+
+.attention-message {
+    margin-top: 0.5rem !important;
+    font-size: 0.75rem;
+    color: var(--story-muted);
+    overflow-wrap: anywhere;
+}
+
+.attention-message code {
+    padding: 0 0.25rem;
+    border-radius: 0.125rem;
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.attention-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+}
+
+.attention-actions .slds-button {
+    justify-content: center;
+}
+
+/* ------------------------------------------------------------ time */
+
+.time {
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+    padding: 1.25rem 1.5rem;
+}
+
+.track {
+    position: relative;
+    height: 0.5rem;
+    border-radius: 0.125rem;
+    background: var(--kind-other);
+    overflow: hidden;
+}
+
+.segment {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    padding: 0;
+    border: 0;
+    background: var(--kind-other);
+    box-shadow: 1px 0 0 var(--story-surface);
+}
+
+.segment_model {
+    background: var(--kind-model);
+}
+.segment_tool {
+    background: var(--kind-tool);
+}
+.segment_approval {
+    background: var(--kind-approval);
+}
+.segment_paused {
+    background: var(--kind-paused);
+}
+
+.segment_link {
+    cursor: pointer;
+}
+
+.segment_link:hover {
+    opacity: 0.8;
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.8125rem;
+}
+
+.legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.legend-item_link {
+    min-height: 1.5rem;
+    margin: -0.125rem -0.375rem;
+    padding: 0.125rem 0.375rem;
+    border: 0;
+    border-radius: 0.375rem;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.legend-item_link:hover {
+    background: var(--story-subtle);
+}
+
+.legend-item_link:focus-visible {
+    outline: 2px solid var(--tone-info);
+    outline-offset: 1px;
+}
+
+.swatch {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 0.125rem;
+}
+
+.swatch_model {
+    background: var(--kind-model);
+}
+.swatch_tool {
+    background: var(--kind-tool);
+}
+.swatch_approval {
+    background: var(--kind-approval);
+}
+.swatch_paused {
+    background: var(--kind-paused);
+}
+.swatch_other {
+    background: var(--kind-other);
+}
+
+.legend-label {
+    color: var(--story-muted);
+}
+
+.legend-value {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.legend-percent {
+    color: var(--story-muted);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------ outcome */
+
+.outcome {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+}
+
+.headline {
+    margin: 0;
+    padding: 0.5rem 0 0.5rem 0.875rem;
+    border-left: 3px solid var(--head-tone, var(--tone-neutral));
+}
+
+.headline p {
+    margin: 0;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.outcome-grid,
+.panel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 1rem;
+}
+
+/* ------------------------------------------------------------ timeline */
+
+.timeline {
+    padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.timeline-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.timeline-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/*
+ * The group draws the outline and each button only a divider, so the selected
+ * button can't grow or overlap its neighbours. Every size is set here because
+ * Lightning gives plain buttons its own line height and margins.
+ */
+.filters {
+    display: inline-flex;
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--story-border);
+    border-radius: var(--story-radius);
+}
+
+.filter {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 0.375rem;
+    box-sizing: border-box;
+    height: 1.875rem;
+    margin: 0;
+    padding: 0 0.75rem;
+    border: 0;
+    border-left: 1px solid var(--story-border);
+    border-radius: 0;
+    background: var(--story-surface);
+    color: var(--story-text);
+    font: inherit;
+    font-size: 0.8125rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.filter:first-child {
+    border-left: 0;
+}
+
+.filter:hover:not([disabled]) {
+    background: var(--story-subtle);
+}
+
+.filter:focus-visible {
+    outline: 2px solid var(--tone-info);
+    outline-offset: -2px;
+}
+
+.filter[disabled] {
+    color: var(--story-muted);
+    cursor: default;
+}
+
+.filter_active,
+.filter_active:hover:not([disabled]) {
+    background: var(--tone-info-bg);
+    color: var(--tone-info);
+    font-weight: 600;
+}
+
+.filter-count {
+    font-size: 0.75rem;
+    color: var(--story-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.filter_issue .filter-count {
+    color: var(--tone-error);
+    font-weight: 700;
+}
+
+.empty {
+    padding: 1rem 0;
+}
+
+.notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--story-radius);
+    background: var(--story-subtle);
+    font-size: 0.8125rem;
+}
+
+.notice-icon {
+    margin-top: 0.125rem;
+    --slds-c-icon-color-foreground-default: var(--tone-info);
+}
+
+.expand-note {
+    margin-bottom: 0.75rem;
+}
+
+.rail {
+    position: relative;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* Each row draws its own segment of the rail so gaps can dash it. Content runs to the edge; times sit inside it. */
+.row {
+    --row-gap: 0.75rem;
+    position: relative;
+    display: grid;
+    grid-template-columns: 1.5rem 1fr;
+    align-items: start;
+    column-gap: var(--row-gap);
+    padding-bottom: 0.75rem;
+}
+
+.row::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(0.75rem - 0.5px);
+    width: 1px;
+    background: var(--story-border);
+}
+
+.row_last::before {
+    bottom: auto;
+    height: 0.75rem;
+}
+
+.row:focus {
+    outline: none;
+}
+
+.row_flash .card,
+.row_flash .marker {
+    outline: 2px solid var(--tone-info);
+    outline-offset: 2px;
+}
+
+.node {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    border: 1px solid var(--tone-neutral);
+    background: var(--story-surface);
+    --slds-c-icon-color-foreground-default: var(--tone-neutral);
+}
+
+.node_success {
+    border-color: var(--tone-success);
+    --slds-c-icon-color-foreground-default: var(--tone-success);
+}
+.node_warning {
+    border-color: var(--tone-warning);
+    --slds-c-icon-color-foreground-default: var(--tone-warning);
+}
+.node_error {
+    border-color: var(--tone-error);
+    background: var(--tone-error-bg);
+    --slds-c-icon-color-foreground-default: var(--tone-error);
+}
+.node_info {
+    border-color: var(--tone-info);
+    --slds-c-icon-color-foreground-default: var(--tone-info);
+}
+.node_waiting {
+    border-color: var(--tone-waiting);
+    --slds-c-icon-color-foreground-default: var(--tone-waiting);
+}
+.node_now {
+    background: var(--tone-info-bg);
+}
+
+.when {
+    font-size: 0.75rem;
+    color: var(--story-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Markers */
+
+.marker-line {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+.marker-line .when {
+    padding-top: 0.25rem;
+}
+
+.marker {
+    padding-top: 0.1875rem;
+    min-width: 0;
+}
+
+.marker-title {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.marker-detail {
+    margin: 0.125rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--story-muted);
+}
+
+.row_start .marker-title,
+.row_config .marker-title {
+    font-weight: 500;
+    color: var(--story-muted);
+}
+
+/* Groups of routine steps */
+
+.group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 0.75rem;
+    min-width: 0;
+    padding: 0.125rem 0.75rem 0.375rem;
+    border: 1px solid var(--story-border);
+    border-radius: var(--story-radius);
+    background: var(--story-subtle);
+}
+
+.group .when {
+    margin-left: auto;
+}
+
+.row_group .marker-title {
+    font-weight: 600;
+    color: var(--story-muted);
+}
+
+/* Gaps */
+
+.row_gap {
+    grid-template-columns: 1.5rem 1fr;
+    align-items: center;
+    padding: 0.125rem 0 0.875rem;
+}
+
+.row_gap::before {
+    background: repeating-linear-gradient(to bottom, var(--story-border) 0 4px, transparent 4px 8px);
+}
+
+.gap-line {
+    grid-column: 1;
+}
+
+.gap-label {
+    justify-self: start;
+    font-size: 0.75rem;
+    color: var(--story-muted);
+}
+
+/* Step cards */
+
+.card {
+    position: relative;
+    min-width: 0;
+    border: 1px solid var(--story-border);
+    border-radius: var(--story-radius);
+    background: var(--story-surface);
+}
+
+/* Model and tool steps are equal cards; the model's edge carries its colour from the time bar. */
+.row_model .card {
+    box-shadow: inset 3px 0 0 var(--kind-model);
+}
+
+.row .card_current {
+    border-color: var(--tone-info);
+}
+
+.row .card_error {
+    border-color: var(--tone-error);
+}
+.row .card_warning {
+    border-color: var(--tone-warning);
+}
+
+.card-head {
+    display: flex;
+    width: 100%;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border: 0;
+    border-radius: var(--story-radius);
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.card-head:focus-visible {
+    outline: 2px solid var(--tone-info);
+    outline-offset: -2px;
+}
+
+.card-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+}
+
+.card-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+/* One quiet line under the title: kind, then the step's measures. */
+.card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    font-size: 0.75rem;
+    color: var(--story-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.card-meta > * + *::before {
+    content: '·';
+    margin: 0 0.375rem;
+    color: var(--story-muted);
+    font-weight: 400;
+}
+
+.card-meta > * {
+    overflow-wrap: anywhere;
+}
+
+.row_model .card-kind::before,
+.row_tool .card-kind::before {
+    content: '';
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-right: 0.375rem;
+    border-radius: 0.125rem;
+}
+
+.row_model .card-kind::before {
+    background: var(--kind-model);
+}
+.row_tool .card-kind::before {
+    background: var(--kind-tool);
+}
+
+.card-side {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.chevron {
+    --slds-c-icon-color-foreground-default: var(--story-muted);
+}
+
+.badge {
+    padding: 0 0.5rem;
+    border-radius: 0.75rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.125rem;
+    white-space: nowrap;
+}
+
+.badge_success {
+    color: var(--tone-success);
+    background: var(--tone-success-bg);
+}
+.badge_warning {
+    color: var(--tone-warning);
+    background: var(--tone-warning-bg);
+}
+.badge_error {
+    color: var(--tone-error);
+    background: var(--tone-error-bg);
+}
+.badge_info {
+    color: var(--tone-info);
+    background: var(--tone-info-bg);
+}
+.badge_waiting {
+    color: var(--tone-waiting);
+    background: var(--tone-waiting-bg);
+}
+.badge_neutral {
+    color: var(--story-muted);
+    background: var(--tone-neutral-bg);
+}
+
+.chip[data-kind='attempts'] {
+    color: var(--tone-warning);
+    font-weight: 600;
+}
+
+/* The model's own words, in its colour and voice: a thought, not a fact Core checked. */
+.step-rationale {
+    position: relative;
+    display: flex;
+    gap: 0.5rem;
+    margin: 0.125rem 0.75rem 0.625rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.75rem;
+    border-top-left-radius: 0.125rem;
+    background: var(--tone-info-bg);
+}
+
+.step-rationale-icon {
+    flex: none;
+    margin-top: 0.125rem;
+    --slds-c-icon-color-foreground-default: var(--kind-model);
+}
+
+.step-rationale-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--kind-model);
+}
+
+.step-rationale-help {
+    --slds-c-icon-color-foreground-default: var(--story-muted);
+}
+
+.step-rationale-text {
+    margin: 0.125rem 0 0;
+    font-size: 0.8125rem;
+    font-style: italic;
+    color: var(--story-text);
+    overflow-wrap: anywhere;
+}
+
+.step-rationale-text::before {
+    content: '\201C';
+}
+
+.step-rationale-text::after {
+    content: '\201D';
+}
+
+.step-error {
+    display: flex;
+    gap: 0.5rem;
+    margin: 0 0.75rem 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--story-radius);
+    background: var(--tone-error-bg);
+}
+
+.step-error-icon {
+    margin-top: 0.125rem;
+    --slds-c-icon-color-foreground-default: var(--tone-error);
+}
+
+.step-error-title,
+.step-error-detail {
+    margin: 0;
+    font-size: 0.8125rem;
+}
+
+.step-error-title {
+    font-weight: 700;
+    color: var(--tone-error);
+}
+
+/*
+ * One model reply that asked for several tools: the model card and its tools
+ * share a box drawn behind their cards, headed by the model step. The box sits
+ * in the gap beside the rail, so the rail and its nodes stay outside it.
+ */
+.row_batch {
+    --batch-inset: 0.5rem;
+}
+
+.row_batch::after {
+    content: '';
+    position: absolute;
+    z-index: 0;
+    top: 0;
+    bottom: 0;
+    left: calc(1.5rem + var(--row-gap) - var(--batch-inset));
+    right: 0;
+    background: var(--story-subtle);
+}
+
+.row_batch > .card {
+    z-index: 1;
+    margin-right: var(--batch-inset);
+}
+
+.row_batch-start {
+    padding-top: var(--batch-inset);
+}
+
+.row_batch-start::after {
+    border-radius: var(--story-radius) var(--story-radius) 0 0;
+}
+
+.row_batch-end {
+    padding-bottom: calc(0.75rem + var(--batch-inset));
+}
+
+.row_batch-end::after {
+    bottom: 0.75rem;
+    border-radius: 0 0 var(--story-radius) var(--story-radius);
+}
+
+/* The box already shows which tools ran together; screen readers still hear it. */
+.row_batch-lead .card-subtitle,
+.row_batch .chip[data-kind='batch'] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+/* Approvals inside a step */
+
+.approvals {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    margin: 0;
+    padding: 0 0.75rem 0.5rem;
+    list-style: none;
+}
+
+.approval {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--story-radius);
+    background: var(--tone-neutral-bg);
+}
+
+.approval_success {
+    background: var(--tone-success-bg);
+    --slds-c-icon-color-foreground-default: var(--tone-success);
+}
+.approval_error {
+    background: var(--tone-error-bg);
+    --slds-c-icon-color-foreground-default: var(--tone-error);
+}
+.approval_warning {
+    background: var(--tone-warning-bg);
+    --slds-c-icon-color-foreground-default: var(--tone-warning);
+}
+.approval_waiting {
+    background: var(--tone-waiting-bg);
+    --slds-c-icon-color-foreground-default: var(--tone-waiting);
+}
+.approval_neutral {
+    --slds-c-icon-color-foreground-default: var(--story-muted);
+}
+
+.approval-outcome {
+    font-size: 0.8125rem;
+}
+
+.approval-body p {
+    margin: 0;
+}
+
+.approval-summary {
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.approval-who {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 0.75rem;
+    font-size: 0.75rem;
+    color: var(--story-muted);
+}
+
+.approval-comment {
+    margin: 0.25rem 0;
+    padding: 0.25rem 0 0.25rem 0.625rem;
+    border-left: 2px solid var(--slds-g-color-border-base-4, #c9c9c9);
+    font-size: 0.8125rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.approval-comment::before {
+    content: '“';
+}
+
+.approval-comment::after {
+    content: '”';
+}
+
+.approval-link {
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+/* Expanded panel */
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 0.75rem;
+    border-top: 1px solid var(--story-border);
+}
+
+.panel-loading {
+    position: relative;
+    min-height: 3rem;
+}
+
+.panel-error {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--tone-error);
+}
+
+.attempts-scroll {
+    overflow-x: auto;
+}
+
+.attempts {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.attempts-caption {
+    padding-bottom: 0.375rem;
+    text-align: left;
+    font-weight: 700;
+    color: var(--story-muted);
+}
+
+.attempts th,
+.attempts td {
+    padding: 0.375rem 0.5rem;
+    border-bottom: 1px solid var(--story-border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.attempts th {
+    font-weight: 600;
+    color: var(--story-muted);
+}
+
+.attempt-error {
+    overflow-wrap: anywhere;
+}
+
+.attempt_selected td {
+    background: var(--tone-info-bg);
+}
+
+.attempt-view {
+    padding: 0 0.25rem;
+    border: 0;
+    background: transparent;
+    color: var(--tone-info);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.attempt-view[aria-pressed='true'] {
+    color: var(--story-muted);
+    cursor: default;
+}
+
+.attempt-view:focus-visible {
+    outline: 2px solid var(--tone-info);
+    outline-offset: 1px;
+}
+
+.attempt-outcome {
+    font-weight: 600;
+}
+
+.attempt-outcome_succeeded {
+    color: var(--tone-success);
+}
+.attempt-outcome_failed,
+.attempt-outcome_unknown {
+    color: var(--tone-error);
+}
+.attempt-outcome_retryrequested,
+.attempt-outcome_waiting {
+    color: var(--tone-warning);
+}
+
+.evidence-note {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+/* ------------------------------------------------------------ narrow widths */
+
+@container story (max-width: 40rem) {
+    .head,
+    .time,
+    .outcome,
+    .timeline,
+    .attention {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .attention {
+        grid-template-columns: auto 1fr;
+    }
+
+    .attention-actions {
+        grid-column: 1 / -1;
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .row {
+        --row-gap: 0.5rem;
+    }
+
+    .row_batch {
+        --batch-inset: 0.375rem;
+    }
+}

@@ -1,0 +1,85 @@
+/*
+ * This file is part of Pluto. It is licensed under the GNU Affero General
+ * Public License, version 3 only. See the LICENSE file at the root of this
+ * repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+ *
+ * The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+ * uses only Pluto's public interface stay under its own license.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * Copyright (c) 2026 Sonal
+ */
+
+.loading {
+    height: 6rem;
+}
+
+/* The state box takes the run's colour, as in the run story, so a paused or failed run never reads as fine. */
+.state {
+    border-left: 3px solid var(--state-color, var(--slds-g-color-border-base-1, #e5e5e5));
+    background: var(--state-bg, transparent);
+}
+
+.state_warning {
+    --state-color: var(--slds-g-color-warning-base-50, #a96404);
+    --state-bg: var(--slds-g-color-warning-base-95, #fef1e0);
+}
+
+.state_error {
+    --state-color: var(--slds-g-color-error-base-40, #ba0517);
+    --state-bg: var(--slds-g-color-error-base-95, #fef1ee);
+}
+
+.state_success {
+    --state-color: var(--slds-g-color-success-base-40, #2e844a);
+    --state-bg: var(--slds-g-color-success-base-95, #ebf7e6);
+}
+
+.state_info {
+    --state-color: var(--slds-g-color-brand-base-50, #0176d3);
+    --state-bg: var(--slds-g-color-brand-base-95, #eef4ff);
+}
+
+.budget {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    margin: 0.75rem 0 0;
+}
+
+.budget-row {
+    display: flex;
+    flex-direction: column;
+}
+
+.budget-label {
+    font-size: 0.75rem;
+    color: var(--slds-g-color-neutral-base-40, #5c5c5c);
+}
+
+.budget-value {
+    margin: 0;
+    font-weight: 700;
+}
+
+.budget-value_spent {
+    color: var(--slds-g-color-error-base-40, #ba0517);
+}
+
+.rescue-blocked {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.25rem;
+    background: var(--slds-g-color-error-base-95, #fef1ee);
+    color: var(--slds-g-color-error-base-40, #ba0517);
+}
+
+.rescue-blocked-text {
+    flex: 1 1 16rem;
+    margin: 0;
+}

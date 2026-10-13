@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ToolAuthorizationPolicyClass__c</fullName>
+    <description>Optional query-only class implementing IToolAuthorizationPolicy.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Optional custom authorization policy selected from the available classes. It can allow, deny, or require approval based on the run and tool. Leave blank to use Core&apos;s default authority checks; a policy cannot bypass user permissions.</inlineHelpText>
+    <label>Tool Authorization Policy Class</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

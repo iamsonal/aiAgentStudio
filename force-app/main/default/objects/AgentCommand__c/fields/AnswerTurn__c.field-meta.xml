@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AnswerTurn__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>True when this model command produced an answer for the person. A conversational agent replays its earlier answers to the model as its own turns.</description>
+    <inlineHelpText>Read-only execution evidence set by Core.</inlineHelpText>
+    <label>Answer Turn</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RecordRetentionDaysRange</fullName>
+    <active>true</active>
+    <description>Record retention must be a whole number no shorter than the effective payload-retention window.</description>
+    <errorConditionFormula>AND(NOT(ISBLANK(RecordRetentionDays__c)), OR(RecordRetentionDays__c &gt; 3650, MOD(RecordRetentionDays__c, 1) &lt;&gt; 0, RecordRetentionDays__c &lt; BLANKVALUE(PayloadRetentionDays__c, 30)))</errorConditionFormula>
+    <errorDisplayField>RecordRetentionDays__c</errorDisplayField>
+    <errorMessage>Record Retention Days must be blank or a whole number from the effective Payload Retention Days through 3650.</errorMessage>
+</ValidationRule>

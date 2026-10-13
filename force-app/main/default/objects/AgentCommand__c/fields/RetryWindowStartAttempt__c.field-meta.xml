@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RetryWindowStartAttempt__c</fullName>
+    <defaultValue>0</defaultValue>
+    <description>Monotonic attempt number immediately before the current operator-authorized retry window.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Read-only lifecycle evidence used to reset retry eligibility without reusing an invocation identity.</inlineHelpText>
+    <label>Retry Window Start Attempt</label>
+    <precision>8</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

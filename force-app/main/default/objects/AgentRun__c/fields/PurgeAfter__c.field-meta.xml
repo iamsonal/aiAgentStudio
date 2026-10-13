@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PurgeAfter__c</fullName>
+    <description>Queryable deadline after which terminal run payloads are eligible for purge.</description>
+    <inlineHelpText>Payload retention purge deadline for this terminal run.</inlineHelpText>
+    <label>Purge After</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

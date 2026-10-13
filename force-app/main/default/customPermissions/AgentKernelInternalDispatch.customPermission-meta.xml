@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Authorizes Core-managed loopback REST dispatch. Assign only to the isolated Delegated Principal service user.</description>
+    <isLicensed>false</isLicensed>
+    <label>Agent Kernel Internal Dispatch</label>
+</CustomPermission>

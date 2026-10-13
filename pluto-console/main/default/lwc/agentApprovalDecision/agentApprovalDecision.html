@@ -1,0 +1,155 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <lightning-quick-action-panel header="Review Agent Request">
+        <div class="slds-is-relative">
+            <template lwc:if={loading}>
+                <lightning-spinner alternative-text="Loading the request" size="small"></lightning-spinner>
+            </template>
+            <template lwc:if={errorMessage}>
+                <div class="error slds-notify slds-notify_alert slds-alert_error slds-m-bottom_small" role="alert">
+                    <span>{errorMessage}</span>
+                </div>
+            </template>
+
+            <template lwc:if={isDecided}>
+                <h2 class="request-title">{title}</h2>
+                <div class={outcomeClass}>
+                    <lightning-icon icon-name={outcomeIcon} size="x-small" class="outcome-icon"></lightning-icon>
+                    <div>
+                        <p class="decided">{outcome}</p>
+                        <template lwc:if={outcomeEffect}>
+                            <p class="outcome-effect">{outcomeEffect}</p>
+                        </template>
+                        <template lwc:if={request.decisionComment}>
+                            <p class="decision-comment">“{request.decisionComment}”</p>
+                        </template>
+                    </div>
+                </div>
+                <template lwc:if={request.reason}>
+                    <p class="decided-reason">Why approval was needed: {request.reason}</p>
+                </template>
+            </template>
+
+            <template lwc:if={isPending}>
+                <h2 class="request-title">{title}</h2>
+                <p class="request-context">
+                    <span
+                        >{requestedBy}<template lwc:if={anchor}>
+                            <template lwc:if={anchorUrl}>
+                                <a class="anchor-link" href={anchorUrl} target="_blank">{anchorLabel}</a>
+                            </template>
+                            <template lwc:else>
+                                <span class="anchor-hidden">a {anchor.objectLabel} you can't open</span>
+                            </template></template
+                        ></span
+                    >
+                    <template lwc:if={timeLeft}>
+                        <span class="time-left">
+                            <lightning-icon icon-name="utility:clock" size="xx-small" class="time-left-icon"></lightning-icon>{timeLeft}
+                        </span>
+                    </template>
+                </p>
+
+                <template lwc:if={isOverdue}>
+                    <p class="deadline deadline_overdue" role="status">{deadline}</p>
+                </template>
+
+                <template lwc:if={request.reason}>
+                    <p class="rule">
+                        <span class="rule-label">Needs approval because</span>
+                        <span class="request-reason">{request.reason}</span>
+                    </p>
+                </template>
+
+                <section class="values" aria-labelledby="requested-values">
+                    <h3 id="requested-values" class="section-title">What the agent will do</h3>
+                    <template lwc:if={hasInputs}>
+                        <dl class="inputs">
+                            <template for:each={inputs} for:item="input">
+                                <div key={input.key} class="input-row">
+                                    <dt class="input-label">{input.label}</dt>
+                                    <dd class="input-value">{input.value}</dd>
+                                </div>
+                            </template>
+                        </dl>
+                    </template>
+                    <template lwc:else>
+                        <p class="no-inputs slds-text-color_weak">The agent sends no values with this request.</p>
+                    </template>
+                    <template lwc:if={request.hasProtectedValues}>
+                        <div class="protected slds-m-top_small">
+                            <p class="protected-hint slds-text-body_small slds-text-color_weak">{protectedHint}</p>
+                            <template lwc:if={showRevealButton}>
+                                <lightning-button
+                                    class="slds-m-top_x-small"
+                                    variant="base"
+                                    label="Show hidden values"
+                                    icon-name="utility:preview"
+                                    onclick={handleReveal}
+                                    disabled={busy}></lightning-button>
+                            </template>
+                            <template lwc:if={revealedInput}>
+                                <pre class="json slds-box slds-theme_shade slds-m-top_x-small slds-text-body_small" tabindex="0">{prettyRevealedInput}</pre>
+                            </template>
+                        </div>
+                    </template>
+                </section>
+
+                <template lwc:if={request.rationale}>
+                    <figure class="explanation">
+                        <blockquote class={rationaleClass}>
+                            <p class="request-rationale">{request.rationale}</p>
+                        </blockquote>
+                        <template lwc:if={showRationaleToggle}>
+                            <lightning-button
+                                variant="base"
+                                label={rationaleToggleLabel}
+                                onclick={handleRationaleToggle}
+                                class="rationale-toggle"></lightning-button>
+                        </template>
+                        <figcaption class="explanation-caption">The agent's explanation. Check the facts before you approve.</figcaption>
+                    </figure>
+                </template>
+
+                <template lwc:if={canDecide}>
+                    <lightning-textarea
+                        label="Comment (optional)"
+                        max-length="1000"
+                        field-level-help="Saved with your decision. If you reject, the agent sees this comment."
+                        onchange={handleComment}
+                        class="comment"></lightning-textarea>
+                    <template lwc:if={deadline}>
+                        <p class="deadline">{deadline}</p>
+                    </template>
+                </template>
+            </template>
+        </div>
+        <div slot="footer">
+            <template lwc:if={canDecide}>
+                <lightning-button variant="neutral" label="Cancel" onclick={close} disabled={busy}></lightning-button>
+                <lightning-button
+                    variant="destructive-text"
+                    label="Reject"
+                    onclick={handleReject}
+                    disabled={busy}
+                    class="slds-m-left_x-small"></lightning-button>
+                <lightning-button variant="brand" label="Approve" onclick={handleApprove} disabled={busy} class="slds-m-left_x-small"></lightning-button>
+            </template>
+            <template lwc:else>
+                <lightning-button variant="neutral" label="Close" onclick={close}></lightning-button>
+            </template>
+        </div>
+    </lightning-quick-action-panel>
+</template>

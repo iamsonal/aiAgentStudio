@@ -22,4 +22,3 @@ scripts/**
 
 **/graphql.config.yml
 
-force-app/main/default/platformEventSubscriberConfigs/**

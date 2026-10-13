@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Catalog of tool types an admin can give an agent. Pluto Core ships the standard types; a developer registers each custom ITool class with its own record. Each record names the Apex class and its Effects, which decide how Core recovers a failed call and which job runs it.</description>
+    <label>Agent Tool Type</label>
+    <pluralLabel>Agent Tool Types</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

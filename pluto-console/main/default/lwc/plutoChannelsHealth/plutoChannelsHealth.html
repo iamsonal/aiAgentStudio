@@ -1,0 +1,67 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <template lwc:if={available}>
+        <lightning-card icon-name="standard:messaging_conversation" class="slds-m-top_medium">
+            <h2 slot="title" class="card-title">Agent Channels</h2>
+            <lightning-button-icon
+                slot="actions"
+                icon-name="utility:refresh"
+                alternative-text="Refresh"
+                title="Refresh"
+                onclick={load}
+                disabled={busy}></lightning-button-icon>
+            <div class="body">
+                <template lwc:if={errorMessage}>
+                    <div class="slds-notify slds-notify_alert slds-alert_error alert" role="alert">
+                        <span>{errorMessage}</span>
+                    </div>
+                </template>
+                <template lwc:if={sweepMissing}>
+                    <div class="sweep-missing" role="note">
+                        <p>The hourly channel sweep is not installed, so missed messages are never retried and old messages are not removed.</p>
+                        <lightning-button label="Install Sweep" onclick={handleInstall} disabled={busy} class="install-sweep"></lightning-button>
+                    </div>
+                </template>
+                <ul class="tiles" aria-label="Channel message counts">
+                    <template for:each={tiles} for:item="tile">
+                        <li key={tile.key} class={tile.className}>
+                            <span class="tile-value">{tile.value}</span>
+                            <span class="tile-label">{tile.label}</span>
+                        </li>
+                    </template>
+                </ul>
+                <template lwc:if={hasParked}>
+                    <h3 class="section-title">Parked emails</h3>
+                    <p class="hint">Fix the cause in the issue code, such as the route or the sender on the record, then retry.</p>
+                    <ul class="parked">
+                        <template for:each={parkedMessages} for:item="message">
+                            <li key={message.id} class="parked-row">
+                                <span class="parked-name">{message.name}</span>
+                                <span class="parked-code">{message.issueCode}</span>
+                                <lightning-button
+                                    label="Retry"
+                                    title={message.retryLabel}
+                                    data-id={message.id}
+                                    onclick={handleRetry}
+                                    disabled={busy}></lightning-button>
+                            </li>
+                        </template>
+                    </ul>
+                    <lightning-button variant="base" label="Open all channel messages" onclick={handleOpenMessages}></lightning-button>
+                </template>
+            </div>
+        </lightning-card>
+    </template>
+</template>

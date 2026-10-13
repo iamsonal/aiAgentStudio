@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RecordRetentionDays__c</fullName>
+    <description>System-maintained evidence-record retention window captured when this durable run started.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Read-only operational state. Blank means Core keeps the run and evidence records indefinitely.</inlineHelpText>
+    <label>Record Retention Days</label>
+    <precision>4</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

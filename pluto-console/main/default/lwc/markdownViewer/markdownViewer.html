@@ -1,0 +1,42 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <!-- Loading State - shown while library loads or content renders -->
+    <template if:true={showLoading}>
+        <div class="markdown-loading">
+            <div class="markdown-skeleton">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line short"></div>
+                <div class="skeleton-line"></div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Error State -->
+    <template if:true={showError}>
+        <div class="markdown-content markdown-content-compact slds-text-color_error slds-p-around_small">{errorMessage}</div>
+    </template>
+
+    <!-- Rendered Content - only shown after markdown is converted to HTML -->
+    <template if:true={showContent}>
+        <div class={contentClass}>
+            <lightning-formatted-rich-text value={renderedHtml}> </lightning-formatted-rich-text>
+        </div>
+    </template>
+
+    <!-- Empty State (no content) -->
+    <template if:true={showEmpty}>
+        <div class="markdown-empty"></div>
+    </template>
+</template>

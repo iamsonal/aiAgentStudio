@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsActive__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Whether agents may use this model. Unchecking it stops every agent that uses the model at its next model call.</description>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Uncheck to stop every agent using this model at its next model call.</inlineHelpText>
+    <label>Active</label>
+    <type>Checkbox</type>
+</CustomField>

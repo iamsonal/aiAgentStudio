@@ -1,0 +1,54 @@
+                       Pluto Extension Exception
+     Additional permission under GNU AGPL version 3, section 7
+
+Copyright (c) 2026 Sonal
+
+Pluto is licensed under the GNU Affero General Public License, version 3
+only (the "License"), with the additional permission below.
+
+1. Definitions
+
+   "Pluto" means the code in this repository that is released under the
+   License, and any version of it that the copyright holder releases.
+
+   "Public Interface" means the parts of Pluto that are meant for other
+   code to use:
+     a. Apex types and members that Pluto declares as global;
+     b. invocable actions and platform events that Pluto ships;
+     c. custom objects, custom fields, and custom metadata types that
+        Pluto ships, used through standard Salesforce features; and
+     d. the rules in the extension contract (force-app/contracts/
+        EXTENSIONS.md).
+
+   An "Extension" is a work that uses Pluto only through the Public
+   Interface, and that does not contain Pluto code or a changed copy of
+   any Pluto file. Examples are a class that implements ITool,
+   IModelProvider, IContextProvider, or IToolAuthorizationPolicy; a Flow
+   or trigger that calls a Pluto invocable action; and Apex that calls a
+   global Pluto method.
+
+2. Permission
+
+   As an additional permission under section 7 of the License, you may
+   create, use, change, and convey an Extension under terms of your
+   choice. You may also let people interact with an Extension over a
+   network. You do not have to make the Extension's source available,
+   and the Extension does not have to be licensed under the License.
+
+   An Extension does not become part of Pluto, or a work based on Pluto,
+   because it runs in the same Salesforce org as Pluto, is loaded or
+   called by Pluto, calls Pluto, or is deployed in the same package or
+   transaction as Pluto.
+
+3. What stays under the License
+
+   This permission does not cover Pluto itself. If you change Pluto, your
+   changed version of Pluto stays under the License, including section 13.
+   If you convey Pluto together with an Extension, for example in one
+   package, you must still meet the License's terms for the Pluto part.
+
+4. Changed versions of Pluto
+
+   If you change Pluto, you may extend this permission to your changed
+   version, but you do not have to. If you do not, delete this file from
+   your version.

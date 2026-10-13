@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DeveloperName__c</fullName>
+    <description>Stable API identifier for this tool within its agent.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>The name the model uses to call this tool. Use letters, numbers, and underscores, unique within this agent. Keep it stable when instructions or integrations refer to it.</inlineHelpText>
+    <label>Developer Name</label>
+    <length>80</length>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ModelTimeoutSeconds__c</fullName>
+    <description>Callout timeout passed to the model provider for each model request.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Blank uses 120 seconds. Allowed range is 10 through 120, the Apex callout ceiling.</inlineHelpText>
+    <label>Model Timeout Seconds</label>
+    <precision>3</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AllowMultipleToolCalls__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>Whether one model turn may request several tool calls. Core runs them one after another as a batch and returns all results to the model together.</description>
+    <inlineHelpText>When checked, the model can request several independent tools in one turn; Core runs them in order and returns all results together, saving model calls. Uncheck when each tool needs the previous tool&apos;s result.</inlineHelpText>
+    <label>Allow Multiple Tool Calls Per Turn</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

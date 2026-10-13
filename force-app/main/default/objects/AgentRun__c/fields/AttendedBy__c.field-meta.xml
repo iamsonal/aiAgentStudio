@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AttendedBy__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>The person a Delegated Principal run works for, captured when that person started it in their own request (a Lightning page, screen flow, or API call). Record data the run&apos;s tools and context return, and records its standard tools change, are limited to what this person can read and edit. Blank for scheduled, triggered, event, and background starts, and for Initiating User runs, which already run as that person.</description>
+    <inlineHelpText>Read-only. Core limits this run&apos;s data access to what this person can see and change.</inlineHelpText>
+    <label>Attended By</label>
+    <referenceTo>User</referenceTo>
+    <relationshipLabel>Attended Agent Runs</relationshipLabel>
+    <relationshipName>AttendedAgentRuns</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

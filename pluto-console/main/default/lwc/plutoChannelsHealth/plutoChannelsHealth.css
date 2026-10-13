@@ -1,0 +1,98 @@
+/*
+ * This file is part of Pluto. It is licensed under the GNU Affero General
+ * Public License, version 3 only. See the LICENSE file at the root of this
+ * repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+ *
+ * The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+ * uses only Pluto's public interface stay under its own license.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * Copyright (c) 2026 Sonal
+ */
+
+:host {
+    display: block;
+}
+
+.card-title {
+    font-weight: 700;
+}
+
+.body {
+    padding: 0 1rem;
+}
+
+.alert {
+    margin-bottom: 0.75rem;
+    border-radius: 0.25rem;
+}
+
+.sweep-missing {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid #e5e5e5;
+    border-left: 4px solid #ba0517;
+    border-radius: 0.25rem;
+    background: #fef1f1;
+}
+
+.tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.tile {
+    display: flex;
+    flex-direction: column;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.25rem;
+}
+
+.tile_warning {
+    border-left: 4px solid #a96404;
+}
+
+.tile_error {
+    border-left: 4px solid #ba0517;
+}
+
+.tile-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.tile-label,
+.hint {
+    color: #5c5c5c;
+    font-size: 0.75rem;
+}
+
+.section-title {
+    font-weight: 700;
+    margin-top: 0.5rem;
+}
+
+.parked-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.parked-name {
+    flex: 1;
+}
+
+.parked-code {
+    color: #5c5c5c;
+    font-family: monospace;
+}

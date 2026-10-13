@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Model__c</fullName>
+    <description>API name of the active Agent Model record this agent calls. The record supplies the model adapter, Named Credential, provider model identifier, and prices.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>The active Agent Model to use. It sets the model adapter, Named Credential, and provider model. Required before the agent can be active.</inlineHelpText>
+    <label>Model</label>
+    <length>40</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

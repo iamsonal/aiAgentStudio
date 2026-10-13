@@ -1,0 +1,35 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <div class="slds-form-element">
+        <span class={labelClass}>
+            <template if:true={required}><abbr class="slds-required" title="required">*</abbr></template>
+            {label}
+        </span>
+        <template if:true={disabled}>
+            <pre class="json-view" tabindex="0" aria-label={frameTitle}>{formattedValue}</pre>
+        </template>
+        <template if:false={disabled}>
+            <div class={editorClass}>
+                <iframe class="editor-frame" src={editorSrc} title={frameTitle} sandbox="allow-scripts allow-same-origin" onload={handleIframeLoad}></iframe>
+            </div>
+            <div class="editor-actions">
+                <lightning-button label="Format JSON" variant="base" onclick={handleFormat}></lightning-button>
+            </div>
+        </template>
+        <template if:true={validationMessage}>
+            <div class="slds-form-element__help slds-text-color_error" role="alert">{validationMessage}</div>
+        </template>
+    </div>
+</template>

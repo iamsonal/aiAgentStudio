@@ -1,0 +1,16 @@
+---
+// A LinkCard to another docs page. Write href from the site root, such as /start/install/.
+// LinkCard does not add the site's base path, so add it here, as remark-base-links does for Markdown.
+import { LinkCard } from '@astrojs/starlight/components';
+
+interface Props {
+  title: string;
+  href: string;
+  description?: string;
+}
+
+const { title, href, description } = Astro.props;
+const prefix = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<LinkCard title={title} href={`${prefix}${href}`} description={description} />

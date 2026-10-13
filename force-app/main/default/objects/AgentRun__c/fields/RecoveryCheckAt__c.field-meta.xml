@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RecoveryCheckAt__c</fullName>
+    <description>When scheduled recovery may next examine this run. Core sets it after a recovery step fails for this run so one failing run cannot stall recovery of others.</description>
+    <inlineHelpText>Read-only. Set by Pluto Core when recovery skipped this run after a failure; recovery retries it after this time.</inlineHelpText>
+    <label>Recovery Check At</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

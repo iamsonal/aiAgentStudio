@@ -1,0 +1,7 @@
+<aura:component
+    description="Opens the Pluto editor for the New and Edit buttons. Standard button overrides must be Aura; the editor itself is c:plutoRecordPage."
+    implements="lightning:actionOverride,force:hasRecordId,force:hasSObjectName"
+    access="global"
+>
+    <c:plutoRecordPage recordId="{!v.recordId}" objectApiName="{!v.sObjectName}" inButtonOverride="true" />
+</aura:component>

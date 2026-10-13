@@ -1,19 +1,84 @@
 {
-  "packageDirectories": [
-    {
-      "versionName": "ver 0.1",
-      "versionNumber": "0.1.0.NEXT",
-      "path": "force-app",
-      "default": true,
-      "package": "aiAgentStudio",
-          "versionDescription": "Friday core framework"
+    "packageDirectories": [
+        {
+            "versionName": "Pluto Core 2.0",
+            "versionNumber": "2.0.0.NEXT",
+            "path": "force-app",
+            "default": true,
+            "package": "AgentCore",
+            "unpackagedMetadata": {
+                "path": "unpackagedMetadata"
+            },
+            "versionDescription": "Runs AI agents in Salesforce: model calls, tools, approvals, recovery, and a record of every run. Install it first.",
+            "postInstallUrl": "https://iamsonal.github.io/aiAgentStudio/start/install/#turn-on-cores-schedules",
+            "releaseNotesUrl": "https://github.com/iamsonal/aiAgentStudio/releases"
+        },
+        {
+            "versionName": "Pluto Model Adapters 2.0",
+            "versionNumber": "2.0.0.NEXT",
+            "path": "pluto-model-adapters",
+            "default": false,
+            "package": "PlutoModelAdapters",
+            "versionDescription": "Connects Pluto Core to OpenAI, Azure OpenAI, and any endpoint that serves the OpenAI Responses API. Needs Pluto Core.",
+            "dependencies": [
+                {
+                    "package": "AgentCore",
+                    "versionNumber": "2.0.0.LATEST"
+                }
+            ],
+            "postInstallUrl": "https://iamsonal.github.io/aiAgentStudio/setup/model/",
+            "releaseNotesUrl": "https://github.com/iamsonal/aiAgentStudio/releases"
+        },
+        {
+            "path": "packages/agent-testing-kit",
+            "default": false
+        },
+        {
+            "path": "packages/agent-service-user-setup",
+            "default": false
+        },
+        {
+            "path": "packages/agent-hitl",
+            "default": false
+        },
+        {
+            "path": "packages/agent-channels",
+            "default": false
+        },
+        {
+            "path": "packages/agent-tools",
+            "default": false
+        },
+        {
+            "versionName": "Pluto Console 2.0",
+            "versionNumber": "2.0.0.NEXT",
+            "path": "pluto-console",
+            "default": false,
+            "package": "PlutoConsole",
+            "versionDescription": "Admin console for Pluto Core. Set up agents and tools, follow each run step by step, and decide approvals. Needs Pluto Core.",
+            "dependencies": [
+                {
+                    "package": "AgentCore",
+                    "versionNumber": "2.0.0.LATEST"
+                }
+            ],
+            "unpackagedMetadata": {
+                "path": "unpackagedMetadata"
+            },
+            "postInstallUrl": "https://iamsonal.github.io/aiAgentStudio/setup/pluto/",
+            "releaseNotesUrl": "https://github.com/iamsonal/aiAgentStudio/releases"
+        }
+    ],
+    "name": "aiAgentStudio",
+    "namespace": "",
+    "sfdcLoginUrl": "https://login.salesforce.com",
+    "sourceApiVersion": "68.0",
+    "packageAliases": {
+        "AgentCore": "0HogK0000004wNBSAY",
+        "PlutoModelAdapters": "0HogK0000004wOnSAI",
+        "PlutoConsole": "0HogK0000004wQPSAY",
+        "AgentCore@2.0.0-1": "04tgK000000RSxtQAG",
+        "PlutoModelAdapters@2.0.0-1": "04tgK000000RVAzQAO",
+        "PlutoConsole@2.0.0-2": "04tgK000000RefhQAC"
     }
-  ],
-  "name": "aiAgentStudio",
-  "namespace": "",
-  "sfdcLoginUrl": "https://login.salesforce.com",
-  "sourceApiVersion": "63.0",
-  "packageAliases": {
-    "aiAgentStudio": "0HogK0000000wwrSAA"
-  }
 }

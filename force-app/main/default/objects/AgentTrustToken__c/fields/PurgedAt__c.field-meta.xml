@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PurgedAt__c</fullName>
+    <description>Time at which Core permanently cleared the original value.</description>
+    <inlineHelpText>System-managed retention evidence; blank until the original value is cleared.</inlineHelpText>
+    <label>Purged At</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

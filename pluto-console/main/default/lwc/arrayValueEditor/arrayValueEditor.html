@@ -1,0 +1,247 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <div class="slds-form-element">
+        <div class="slds-form-element__label-wrapper">
+            <label class="slds-form-element__label">{label}</label>
+            <template if:true={helpText}>
+                <lightning-helptext content={helpText}></lightning-helptext>
+            </template>
+        </div>
+
+        <div class="slds-form-element__control">
+            <!-- Array Items List -->
+            <template if:true={hasItems}>
+                <ul class="slds-list_vertical slds-has-dividers_bottom-space">
+                    <template for:each={items} for:item="item" for:index="index">
+                        <li key={item.id} class="slds-item">
+                            <div class="slds-grid slds-grid_vertical-align-center slds-gutters_x-small slds-p-vertical_xx-small">
+                                <!-- Item Index -->
+                                <div class="slds-col slds-no-flex">
+                                    <span class="slds-badge slds-badge_lightest">{item.displayIndex}</span>
+                                </div>
+
+                                <!-- Item Value Input (type-specific) -->
+                                <div class="slds-col">
+                                    <!-- String Input -->
+                                    <template if:true={isStringType}>
+                                        <template if:true={hasAllowedValues}>
+                                            <lightning-combobox
+                                                variant="label-hidden"
+                                                placeholder="Select an allowed value..."
+                                                options={allowedValueOptions}
+                                                value={item.value}
+                                                data-index={index}
+                                                onchange={handleItemChange}
+                                                disabled={disabled}></lightning-combobox>
+                                        </template>
+                                        <template if:false={hasAllowedValues}>
+                                            <template if:true={hasFieldOptions}>
+                                                <c-smart-lookup
+                                                    variant="label-hidden"
+                                                    placeholder="Select field or type name..."
+                                                    allow-free-text="true"
+                                                    options={availableFields}
+                                                    value={item.value}
+                                                    data-index={index}
+                                                    onchange={handleItemChange}
+                                                    disabled={disabled}></c-smart-lookup>
+                                            </template>
+                                            <template if:false={hasFieldOptions}>
+                                                <lightning-input
+                                                    variant="label-hidden"
+                                                    type="text"
+                                                    placeholder="Enter value..."
+                                                    value={item.value}
+                                                    data-index={index}
+                                                    onchange={handleItemChange}
+                                                    disabled={disabled}></lightning-input>
+                                            </template>
+                                        </template>
+                                    </template>
+
+                                    <!-- Number Input -->
+                                    <template if:true={isNumberType}>
+                                        <lightning-input
+                                            variant="label-hidden"
+                                            type="number"
+                                            placeholder="Enter number..."
+                                            value={item.value}
+                                            data-index={index}
+                                            onchange={handleItemChange}
+                                            disabled={disabled}></lightning-input>
+                                    </template>
+
+                                    <!-- Boolean Input -->
+                                    <template if:true={isBooleanType}>
+                                        <lightning-input
+                                            variant="label-hidden"
+                                            type="toggle"
+                                            checked={item.booleanValue}
+                                            data-index={index}
+                                            onchange={handleBooleanItemChange}
+                                            disabled={disabled}
+                                            message-toggle-active="True"
+                                            message-toggle-inactive="False"></lightning-input>
+                                    </template>
+
+                                    <!-- Object Input (Key-Value Pairs) -->
+                                    <template if:true={isObjectType}>
+                                        <div class="slds-box slds-box_x-small slds-theme_shade object-editor">
+                                            <template if:true={item.keyValuePairs}>
+                                                <template for:each={item.keyValuePairs} for:item="pair">
+                                                    <div key={pair.id} class="slds-grid slds-gutters_xx-small slds-m-bottom_xx-small">
+                                                        <!-- Key Input -->
+                                                        <div class="slds-col slds-size_4-of-12">
+                                                            <div class={pair.keyInputClass}>
+                                                                <lightning-input
+                                                                    variant="label-hidden"
+                                                                    placeholder="Key"
+                                                                    value={pair.key}
+                                                                    data-index={index}
+                                                                    data-pair-id={pair.id}
+                                                                    onchange={handleObjectKeyChange}
+                                                                    disabled={disabled}></lightning-input>
+                                                            </div>
+                                                            <template if:true={pair.hasKeyError}>
+                                                                <div class="slds-form-element__help slds-text-color_error slds-m-top_xx-small">
+                                                                    {pair.keyErrorMessage}
+                                                                </div>
+                                                            </template>
+                                                        </div>
+
+                                                        <!-- Type Selector -->
+                                                        <div class="slds-col slds-size_3-of-12">
+                                                            <lightning-combobox
+                                                                variant="label-hidden"
+                                                                placeholder="Type"
+                                                                value={pair.valueType}
+                                                                options={propertyValueTypeOptions}
+                                                                data-index={index}
+                                                                data-pair-id={pair.id}
+                                                                onchange={handleObjectTypeChange}
+                                                                disabled={disabled}></lightning-combobox>
+                                                        </div>
+
+                                                        <!-- Value Input (type-specific) -->
+                                                        <div class="slds-col slds-size_4-of-12">
+                                                            <!-- String/Number Input -->
+                                                            <template if:false={pair.isBooleanValue}>
+                                                                <lightning-input
+                                                                    variant="label-hidden"
+                                                                    type={pair.inputType}
+                                                                    placeholder="Value"
+                                                                    value={pair.value}
+                                                                    data-index={index}
+                                                                    data-pair-id={pair.id}
+                                                                    onchange={handleObjectValueChange}
+                                                                    disabled={disabled}></lightning-input>
+                                                            </template>
+
+                                                            <!-- Boolean Toggle -->
+                                                            <template if:true={pair.isBooleanValue}>
+                                                                <lightning-input
+                                                                    variant="label-hidden"
+                                                                    type="toggle"
+                                                                    checked={pair.booleanValue}
+                                                                    data-index={index}
+                                                                    data-pair-id={pair.id}
+                                                                    onchange={handleObjectBooleanChange}
+                                                                    disabled={disabled}
+                                                                    message-toggle-active="true"
+                                                                    message-toggle-inactive="false"></lightning-input>
+                                                            </template>
+                                                        </div>
+
+                                                        <!-- Remove Pair Button -->
+                                                        <div class="slds-col slds-size_1-of-12">
+                                                            <lightning-button-icon
+                                                                icon-name="utility:close"
+                                                                variant="bare"
+                                                                alternative-text="Remove"
+                                                                size="x-small"
+                                                                data-index={index}
+                                                                data-pair-id={pair.id}
+                                                                onclick={handleRemoveKeyValuePair}
+                                                                disabled={disabled}></lightning-button-icon>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </template>
+
+                                            <!-- Add Key-Value Pair Button -->
+                                            <lightning-button
+                                                label="Add Property"
+                                                icon-name="utility:add"
+                                                variant="base"
+                                                size="small"
+                                                data-index={index}
+                                                onclick={handleAddKeyValuePair}
+                                                disabled={disabled}
+                                                class="slds-m-top_xx-small"></lightning-button>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <!-- Remove Button -->
+                                <div class="slds-col slds-no-flex">
+                                    <lightning-button-icon
+                                        icon-name="utility:delete"
+                                        variant="bare"
+                                        alternative-text="Remove item"
+                                        title="Remove this item"
+                                        data-index={index}
+                                        onclick={handleRemoveItem}
+                                        disabled={disabled}></lightning-button-icon>
+                                </div>
+                            </div>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+
+            <!-- Empty State -->
+            <template if:false={hasItems}>
+                <div class="slds-text-align_center slds-p-vertical_small slds-text-color_weak">
+                    <p class="slds-text-body_small">No items yet. Click "Add Item" to get started.</p>
+                </div>
+            </template>
+
+            <!-- Add Item Button -->
+            <div class="slds-m-top_small">
+                <lightning-button
+                    label="Add Item"
+                    icon-name="utility:add"
+                    onclick={handleAddItem}
+                    disabled={disabled}
+                    class="slds-m-right_x-small"></lightning-button>
+
+                <!-- Clear All Button (only show if has items) -->
+                <template if:true={hasItems}>
+                    <lightning-button label="Clear All" variant="destructive-text" onclick={handleClearAll} disabled={disabled}></lightning-button>
+                </template>
+            </div>
+
+            <!-- JSON Preview (optional) -->
+            <template if:true={showJsonPreview}>
+                <div class="slds-m-top_small">
+                    <div class="slds-text-title_caps slds-m-bottom_xx-small">JSON Preview</div>
+                    <div class="slds-box slds-box_x-small slds-theme_shade">
+                        <code class="slds-text-body_small">{jsonPreview}</code>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</template>

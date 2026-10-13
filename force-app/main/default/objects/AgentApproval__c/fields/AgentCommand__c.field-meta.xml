@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AgentCommand__c</fullName>
+    <deleteConstraint>Restrict</deleteConstraint>
+    <description>Exact tool command this approval allows or denies.</description>
+    <inlineHelpText>Read-only. Pluto Core sets this value; it cannot be edited.</inlineHelpText>
+    <label>Agent Command</label>
+    <referenceTo>AgentCommand__c</referenceTo>
+    <relationshipLabel>Approvals</relationshipLabel>
+    <relationshipName>Approvals</relationshipName>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

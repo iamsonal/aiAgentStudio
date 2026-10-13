@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Authorizes bounded payload-retention minimization. It does not authorize lifecycle mutation.</description>
+    <isLicensed>false</isLicensed>
+    <label>Agent Kernel Retention Purge</label>
+</CustomPermission>

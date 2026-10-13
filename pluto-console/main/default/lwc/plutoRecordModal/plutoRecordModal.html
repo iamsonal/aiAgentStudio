@@ -1,0 +1,92 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <lightning-modal-header label={title}></lightning-modal-header>
+    <lightning-modal-body>
+        <template lwc:if={isAgent}>
+            <c-pluto-agent-detail
+                record-id={recordId}
+                is-new={isNew}
+                mode="edit"
+                hide-header
+                variant="modal"
+                default-values={defaultValues}
+                onrecordsaved={handleSaved}
+                onrecordcancel={handleCancel}
+                onmodechange={handleCancel}></c-pluto-agent-detail>
+        </template>
+        <template lwc:if={isTool}>
+            <c-pluto-tool-detail
+                record-id={recordId}
+                is-new={isNew}
+                mode="edit"
+                hide-header
+                variant="modal"
+                default-values={defaultValues}
+                onrecordsaved={handleSaved}
+                onrecordcancel={handleCancel}
+                onmodechange={handleCancel}></c-pluto-tool-detail>
+        </template>
+        <template lwc:if={isContextProvider}>
+            <c-pluto-context-provider-detail
+                record-id={recordId}
+                is-new={isNew}
+                mode="edit"
+                hide-header
+                variant="modal"
+                default-values={defaultValues}
+                onrecordsaved={handleSaved}
+                onrecordcancel={handleCancel}
+                onmodechange={handleCancel}></c-pluto-context-provider-detail>
+        </template>
+        <template lwc:if={isExecutionIdentity}>
+            <c-pluto-execution-identity-detail
+                record-id={recordId}
+                is-new={isNew}
+                mode="edit"
+                hide-header
+                variant="modal"
+                default-values={defaultValues}
+                onrecordsaved={handleSaved}
+                onrecordcancel={handleCancel}
+                onmodechange={handleCancel}></c-pluto-execution-identity-detail>
+        </template>
+        <!--
+        <template lwc:if={isApprovalRoute}>
+            <c-pluto-approval-route-detail
+                record-id={recordId}
+                is-new={isNew}
+                mode="edit"
+                hide-header
+                variant="modal"
+                default-values={defaultValues}
+                onrecordsaved={handleSaved}
+                onrecordcancel={handleCancel}
+                onmodechange={handleCancel}></c-pluto-approval-route-detail>
+        </template>
+        <template lwc:if={isChannelRoute}>
+            <c-pluto-channel-route-detail
+                record-id={recordId}
+                is-new={isNew}
+                mode="edit"
+                hide-header
+                variant="modal"
+                default-values={defaultValues}
+                onrecordsaved={handleSaved}
+                onrecordcancel={handleCancel}
+                onmodechange={handleCancel}></c-pluto-channel-route-detail>
+        </template>
+        -->
+    </lightning-modal-body>
+</template>

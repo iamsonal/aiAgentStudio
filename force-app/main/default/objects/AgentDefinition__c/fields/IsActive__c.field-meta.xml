@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsActive__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Controls whether new runs can use this definition.</description>
+    <inlineHelpText>Deactivate to prevent new work from resolving this definition. In-flight runs fail closed when required configuration is inactive.</inlineHelpText>
+    <label>Is Active</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

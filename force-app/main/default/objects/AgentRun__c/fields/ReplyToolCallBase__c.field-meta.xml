@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ReplyToolCallBase__c</fullName>
+    <description>Tool Call Count when the person&apos;s latest reply arrived. A conversational run&apos;s tool-call budget counts only the calls after it.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Read-only. Core sets this when a conversation receives a reply. Blank means the budget counts the whole run.</inlineHelpText>
+    <label>Tool Calls Before Reply</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

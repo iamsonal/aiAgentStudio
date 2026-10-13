@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExecutionIdentity__c</fullName>
+    <deleteConstraint>Restrict</deleteConstraint>
+    <description>Decides who the agent&apos;s runs act as. Set: the identity&apos;s execution user, through its Named Credential. Blank: whoever starts the run. An identity in use cannot be deleted; deactivate it instead.</description>
+    <inlineHelpText>Runs as this identity&apos;s user, which supports approvals and recovery. A run a person starts is also limited by that person&apos;s access. Leave blank to run as whoever starts the agent.</inlineHelpText>
+    <label>Agent Execution Identity</label>
+    <referenceTo>AgentExecutionIdentity__c</referenceTo>
+    <relationshipLabel>Agent Definitions</relationshipLabel>
+    <relationshipName>AgentDefinitions</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

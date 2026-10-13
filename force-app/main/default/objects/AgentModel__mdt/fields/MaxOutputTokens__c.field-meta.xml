@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MaxOutputTokens__c</fullName>
+    <description>Most tokens the model may write in one turn, including reasoning. Core passes it to the model adapter on every request.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Optional whole number. Blank lets the adapter choose (the OpenAI adapter uses 8,000). A larger value allows longer answers, but a turn must still finish within the 120-second callout limit. Raise it when runs pause with MODEL_OUTPUT_TRUNCATED.</inlineHelpText>
+    <label>Max Output Tokens</label>
+    <precision>9</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

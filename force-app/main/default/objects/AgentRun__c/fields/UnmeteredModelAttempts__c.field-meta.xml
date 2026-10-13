@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>UnmeteredModelAttempts__c</fullName>
+    <defaultValue>0</defaultValue>
+    <description>Model attempts that ended without reported token usage, such as a timeout. Core estimates their input tokens from the request size and counts them toward Max Total Tokens.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Read-only. Attempts whose tokens Core estimated because the provider reported none. Their estimate is included in the token totals.</inlineHelpText>
+    <label>Unmetered Model Attempts</label>
+    <precision>8</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

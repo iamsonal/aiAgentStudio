@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AgentDefinition__c</fullName>
+    <description>Agent definition that owns this tool configuration.</description>
+    <inlineHelpText>Select the agent that may expose this tool to its model. Core resolves active tools when each command executes.</inlineHelpText>
+    <label>Agent Definition</label>
+    <referenceTo>AgentDefinition__c</referenceTo>
+    <relationshipLabel>Tools</relationshipLabel>
+    <relationshipName>Tools</relationshipName>
+    <relationshipOrder>0</relationshipOrder>
+    <reparentableMasterDetail>false</reparentableMasterDetail>
+    <trackTrending>false</trackTrending>
+    <type>MasterDetail</type>
+    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+</CustomField>

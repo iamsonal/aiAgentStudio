@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AgentTool__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>The tool whose call waits for this approval. Pluto Core sets it when the approval opens. Approval processes, notification packages, and reports use it to treat each tool differently without matching on Tool Name.</description>
+    <inlineHelpText>Read-only. Pluto Core sets this value; it cannot be edited.</inlineHelpText>
+    <label>Agent Tool</label>
+    <referenceTo>AgentTool__c</referenceTo>
+    <relationshipLabel>Approvals</relationshipLabel>
+    <relationshipName>Approvals</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

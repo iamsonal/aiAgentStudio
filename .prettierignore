@@ -17,6 +17,8 @@ lib
 **/*.tar.gz
 .vscode
 node_modules
-
+.claude
+.planning
+coverage-reports
 
 

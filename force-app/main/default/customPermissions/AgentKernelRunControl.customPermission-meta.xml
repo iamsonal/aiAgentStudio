@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Authorizes lifecycle control of visible Pluto Core runs when the current user is not the initiating actor.</description>
+    <isLicensed>false</isLicensed>
+    <label>Agent Kernel Run Control</label>
+</CustomPermission>

@@ -1,0 +1,55 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <lightning-modal-header label="Input Schema" tagline="Visible to AI"></lightning-modal-header>
+    <lightning-modal-body>
+        <template if:true={readOnly}>
+            <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">This is the JSON the AI sees when it calls the tool.</p>
+            <template if:true={inputSchema}>
+                <c-tool-json-read-only-preview label="Input Schema" value={inputSchema} height="60vh"></c-tool-json-read-only-preview>
+            </template>
+            <template if:false={inputSchema}>
+                <p class="slds-text-color_weak">{emptyMessage}</p>
+            </template>
+        </template>
+        <template if:false={readOnly}>
+            <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">
+                This is the JSON the AI sees when it calls the tool. Paste or edit it, then click Apply to check it and see its inputs. Nothing is saved until
+                you click Save.
+            </p>
+            <template if:true={hasProblems}>
+                <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_small problems" role="alert" tabindex="-1" data-problems>
+                    <div>
+                        <p>Fix this, then click Apply again. The inputs have not changed.</p>
+                        <ul class="slds-list_dotted">
+                            <template for:each={problems} for:item="problem">
+                                <li key={problem}>{problem}</li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </template>
+            <c-json-editor label="Input Schema" object-only value={draft} onchange={handleChange}></c-json-editor>
+        </template>
+    </lightning-modal-body>
+    <lightning-modal-footer>
+        <template if:true={readOnly}>
+            <lightning-button label="Close" onclick={handleCancel}></lightning-button>
+        </template>
+        <template if:false={readOnly}>
+            <lightning-button label="Cancel" onclick={handleCancel} disabled={isApplying}></lightning-button>
+            <lightning-button label="Apply" variant="brand" class="slds-m-left_x-small" onclick={handleApply} disabled={isApplying}></lightning-button>
+        </template>
+    </lightning-modal-footer>
+</template>

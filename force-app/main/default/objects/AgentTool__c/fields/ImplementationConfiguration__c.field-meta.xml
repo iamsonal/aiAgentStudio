@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ImplementationConfiguration__c</fullName>
+    <description>Optional administrator-controlled JSON configuration passed only to the tool implementation.</description>
+    <inlineHelpText>Enter a JSON object containing non-secret implementation settings. Core resolves this value for tool execution and never exposes it to the model.</inlineHelpText>
+    <label>Implementation Configuration</label>
+    <length>32768</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>6</visibleLines>
+</CustomField>

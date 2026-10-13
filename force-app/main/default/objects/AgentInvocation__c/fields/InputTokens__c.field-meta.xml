@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InputTokens__c</fullName>
+    <description>Provider-reported input tokens for this invocation attempt.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Provider-reported input token count for this model invocation.</inlineHelpText>
+    <label>Input Tokens</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

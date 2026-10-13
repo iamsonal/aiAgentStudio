@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ContinuationMode__c</fullName>
+    <description>System-maintained Continuation Mode for this durable agent run.</description>
+    <inlineHelpText>Read-only operational state. Core updates this value as the run progresses.</inlineHelpText>
+    <label>Continuation Mode</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Model</fullName>
+                <default>false</default>
+                <label>Model</label>
+            </value>
+            <value>
+                <fullName>Conversation</fullName>
+                <default>false</default>
+                <label>Conversation</label>
+            </value>
+            <value>
+                <fullName>Reinvoke Tool</fullName>
+                <default>false</default>
+                <label>Reinvoke Tool</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MaxRetries__c</fullName>
+    <description>Optional maximum retry attempts for one retryable command executed by this agent.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Retries allowed for an operation after a retryable failure. Blank uses 3; use a whole number from 0 to 99. Set 0 to disable retries. An uncertain external effect must be reconciled before it can repeat.</inlineHelpText>
+    <label>Max Retries</label>
+    <precision>2</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

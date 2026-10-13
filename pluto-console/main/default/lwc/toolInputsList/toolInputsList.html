@@ -1,0 +1,205 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <template if:false={hasInputs}>
+        <p class="slds-text-body_small slds-text-color_weak" data-empty>The model sends no inputs to this tool.</p>
+    </template>
+    <template if:true={hasInputs}>
+        <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_fixed-layout" aria-label="Inputs the model sends">
+            <thead>
+                <tr class="slds-line-height_reset">
+                    <th scope="col" class="col-name"><div class="slds-truncate">Input</div></th>
+                    <th scope="col" class="col-type"><div class="slds-truncate">Type</div></th>
+                    <th scope="col" class="col-required"><div class="slds-truncate">Required</div></th>
+                    <th scope="col"><div class="slds-truncate">Details</div></th>
+                </tr>
+            </thead>
+            <tbody>
+                <template for:each={rows} for:item="row">
+                    <tr key={row.path} class={row.rowClass} data-row={row.path}>
+                        <td class="col-name">
+                            <div class="tree" style={row.indentStyle}>
+                                <template if:true={row.isChild}>
+                                    <span class="tree__elbow" aria-hidden="true"></span>
+                                </template>
+                                <template if:true={row.hasChildren}>
+                                    <lightning-icon
+                                        class="tree__icon"
+                                        icon-name="utility:chevrondown"
+                                        size="xx-small"
+                                        alternative-text="Group"></lightning-icon>
+                                </template>
+                                <span class="input-name slds-truncate" title={row.path}>{row.name}</span>
+                            </div>
+                            <template if:true={row.edited}>
+                                <div style={row.indentStyle}>
+                                    <span class="slds-badge slds-m-top_xx-small" data-edited>Edited</span>
+                                </div>
+                            </template>
+                        </td>
+                        <td class="col-type"><div class="slds-truncate" title={row.typeLabel}>{row.typeLabel}</div></td>
+                        <td class="col-required">
+                            <lightning-input
+                                type="checkbox"
+                                label="Required"
+                                variant="label-hidden"
+                                checked={row.required}
+                                disabled={row.requiredDisabled}
+                                data-path={row.path}
+                                data-required
+                                onchange={handleRequiredChange}></lightning-input>
+                        </td>
+                        <td class="slds-cell-wrap">
+                            <template if:false={row.isEditingDescription}>
+                                <p class="slds-text-body_regular" data-description>{row.description}</p>
+                            </template>
+                            <template if:true={row.isEditingDescription}>
+                                <lightning-textarea
+                                    label="Description the model reads"
+                                    value={draftDescription}
+                                    max-length="2000"
+                                    data-description-editor
+                                    onchange={handleDescriptionDraft}></lightning-textarea>
+                                <div class="slds-m-top_xx-small">
+                                    <lightning-button label="Cancel" onclick={handleCancelEdit}></lightning-button>
+                                    <lightning-button
+                                        label="Done"
+                                        variant="brand"
+                                        class="slds-m-left_x-small"
+                                        data-save-description
+                                        onclick={handleSaveDescription}></lightning-button>
+                                </div>
+                            </template>
+                            <template if:true={row.valuesText}>
+                                <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small" data-values>Values: {row.valuesText}</p>
+                            </template>
+                            <template if:true={row.lengthText}>
+                                <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small" data-length>{row.lengthText}</p>
+                            </template>
+                            <template if:true={row.isEditingFreeValues}>
+                                <lightning-textarea
+                                    label="Values the model may send, one per line. Leave empty to allow any text."
+                                    value={draftValuesText}
+                                    data-free-values-editor
+                                    onchange={handleValuesTextDraft}></lightning-textarea>
+                                <div class="slds-m-top_xx-small">
+                                    <lightning-button label="Cancel" onclick={handleCancelEdit}></lightning-button>
+                                    <lightning-button
+                                        label="Done"
+                                        variant="brand"
+                                        class="slds-m-left_x-small"
+                                        data-save-free-values
+                                        onclick={handleSaveFreeValues}></lightning-button>
+                                </div>
+                            </template>
+                            <template if:true={row.isEditingLength}>
+                                <lightning-input
+                                    type="number"
+                                    label="Most characters the model may send"
+                                    value={draftMaxLength}
+                                    min="1"
+                                    max={row.toolMaxLength}
+                                    data-length-editor
+                                    onchange={handleLengthDraft}></lightning-input>
+                                <template if:true={valuesError}>
+                                    <p class="slds-text-color_error slds-text-body_small" data-length-error>{valuesError}</p>
+                                </template>
+                                <div class="slds-m-top_xx-small">
+                                    <lightning-button label="Cancel" onclick={handleCancelEdit}></lightning-button>
+                                    <lightning-button
+                                        label="Done"
+                                        variant="brand"
+                                        class="slds-m-left_x-small"
+                                        data-save-length
+                                        onclick={handleSaveLength}></lightning-button>
+                                </div>
+                            </template>
+                            <template if:true={row.isEditingChoices}>
+                                <lightning-checkbox-group
+                                    label="Values the model may send"
+                                    options={row.valueOptions}
+                                    value={draftValues}
+                                    data-values-editor
+                                    onchange={handleValuesDraft}></lightning-checkbox-group>
+                                <template if:true={valuesError}>
+                                    <p class="slds-text-color_error slds-text-body_small" data-values-error>{valuesError}</p>
+                                </template>
+                                <div class="slds-m-top_xx-small">
+                                    <lightning-button label="Cancel" onclick={handleCancelEdit}></lightning-button>
+                                    <lightning-button
+                                        label="Done"
+                                        variant="brand"
+                                        class="slds-m-left_x-small"
+                                        data-save-values
+                                        onclick={handleSaveValues}></lightning-button>
+                                </div>
+                            </template>
+                            <template if:true={row.leftOut}>
+                                <p class="slds-text-color_error slds-text-body_small slds-m-top_xx-small" data-left-out>
+                                    None of the values this input is limited to are active, so the model does not see it. Edit its values.
+                                </p>
+                            </template>
+                            <template if:true={row.hasProblems}>
+                                <ul class="slds-text-color_error slds-text-body_small slds-m-top_xx-small" data-problems>
+                                    <template for:each={row.problems} for:item="problem">
+                                        <li key={problem.key}>{problem.message}</li>
+                                    </template>
+                                </ul>
+                            </template>
+                            <template if:true={row.showActions}>
+                                <div class="row-actions slds-m-top_xx-small">
+                                    <template if:true={row.canEditDescription}>
+                                        <lightning-button
+                                            variant="base"
+                                            label="Edit description"
+                                            data-path={row.path}
+                                            data-edit-description
+                                            onclick={handleEditDescription}></lightning-button>
+                                    </template>
+                                    <template if:true={row.canLimitValues}>
+                                        <lightning-button
+                                            variant="base"
+                                            label="Limit values"
+                                            class="slds-m-left_small"
+                                            data-path={row.path}
+                                            data-limit-values
+                                            onclick={handleLimitValues}></lightning-button>
+                                    </template>
+                                    <template if:true={row.canLimitLength}>
+                                        <lightning-button
+                                            variant="base"
+                                            label="Limit length"
+                                            class="slds-m-left_small"
+                                            data-path={row.path}
+                                            data-limit-length
+                                            onclick={handleLimitLength}></lightning-button>
+                                    </template>
+                                    <template if:true={row.canReset}>
+                                        <lightning-button
+                                            variant="base"
+                                            label="Reset"
+                                            class="slds-m-left_small"
+                                            data-path={row.path}
+                                            data-reset
+                                            onclick={handleReset}></lightning-button>
+                                    </template>
+                                </div>
+                            </template>
+                        </td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+    </template>
+</template>

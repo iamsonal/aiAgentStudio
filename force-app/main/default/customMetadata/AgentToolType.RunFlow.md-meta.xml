@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Run Flow</label>
+    <protected>false</protected>
+    <values>
+        <field>Description__c</field>
+        <value xsi:type="xsd:string">Runs an autolaunched Flow that only reads or changes this org&apos;s records. A failed run is undone.</value>
+    </values>
+    <values>
+        <field>Effects__c</field>
+        <value xsi:type="xsd:string">InOrg</value>
+    </values>
+    <values>
+        <field>ImplementationType__c</field>
+        <value xsi:type="xsd:string">Flow</value>
+    </values>
+    <values>
+        <field>RequiresObject__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>ToolClass__c</field>
+        <value xsi:type="xsd:string">StandardRunFlowTool</value>
+    </values>
+</CustomMetadata>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MaxRetriesRange</fullName>
+    <active>true</active>
+    <description>Agent retry overrides must be whole numbers from 0 through 99.</description>
+    <errorConditionFormula>AND(NOT(ISBLANK(MaxRetries__c)), OR(MaxRetries__c &lt; 0, MaxRetries__c &gt; 99, MOD(MaxRetries__c, 1) &lt;&gt; 0))</errorConditionFormula>
+    <errorDisplayField>MaxRetries__c</errorDisplayField>
+    <errorMessage>Max Retries must be blank or a whole number from 0 through 99.</errorMessage>
+</ValidationRule>

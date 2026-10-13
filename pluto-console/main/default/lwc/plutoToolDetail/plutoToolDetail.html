@@ -1,0 +1,46 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <template if:true={hasSelection}>
+        <template if:true={showAssistant}>
+            <c-pluto-record-layout
+                record-id={recordId}
+                object-api-name={objectApiName}
+                hidden-fields={hiddenFields}
+                additional-fields={additionalFields}
+                slot-section="Tool Authoring"
+                required-fields={requiredFields}
+                field-dependencies={fieldDependencies}
+                field-options={fieldOptions}
+                default-values={defaultValues}
+                custom-field-renderers={customFieldRenderers}
+                mode={effectiveMode}
+                hide-header={hideHeader}
+                variant={variant}
+                onfieldchange={handleFieldChange}
+                defer-save
+                onedit={handleEdit}
+                onsave={handleSave}
+                onsaverequest={handleSaveRequest}
+                oncancel={handleCancel}>
+                <div slot="form-sections-after" class="slds-p-around_small">
+                    <c-tool-authoring-editor bare record-id={recordId} editing={isToolEditing}></c-tool-authoring-editor>
+                </div>
+            </c-pluto-record-layout>
+        </template>
+    </template>
+    <template if:false={hasSelection}>
+        <p class="slds-p-horizontal_small slds-text-color_weak">Select a tool above to view its details.</p>
+    </template>
+</template>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>LastDeliveryAnomalyAt__c</fullName>
+    <description>Timestamp of the most recent dispatch or delivery anomaly observed for this command.</description>
+    <inlineHelpText>Internal durable timestamp used by operational health reporting.</inlineHelpText>
+    <label>Last Delivery Anomaly At</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

@@ -1,0 +1,117 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <div class={formElementClass}>
+        <label class="slds-form-element__label" for="input" if:true={showLabel}>
+            <abbr class="slds-required" title="required" if:true={required}>*</abbr>
+            {label}
+        </label>
+        <div class="slds-form-element__control">
+            <div class={comboboxContainerClass}>
+                <div class={comboboxClass}>
+                    <div class={inputContainerClass} role="none">
+                        <template if:true={showSelectedIcon}>
+                            <lightning-icon class="slds-combobox__input-entity-icon" icon-name={selectedIcon} size="small" alternative-text=""></lightning-icon>
+                        </template>
+                        <input
+                            id="input"
+                            type="text"
+                            class={inputClass}
+                            role="combobox"
+                            aria-autocomplete="list"
+                            aria-haspopup="listbox"
+                            aria-expanded={ariaExpanded}
+                            aria-controls="listbox"
+                            aria-activedescendant={activeDescendant}
+                            aria-describedby={describedBy}
+                            aria-invalid={hasError}
+                            aria-label={label}
+                            autocomplete="off"
+                            placeholder={placeholder}
+                            value={searchTerm}
+                            readonly={showSelectedValueState}
+                            disabled={disabled}
+                            required={required}
+                            onfocus={handleInputFocus}
+                            onblur={handleInputBlur}
+                            oninput={handleInputChange}
+                            onkeydown={handleKeyDown} />
+                        <template if:true={showSearchIcon}>
+                            <lightning-icon
+                                class="slds-input__icon slds-input__icon_right"
+                                icon-name="utility:search"
+                                size="x-small"
+                                alternative-text=""></lightning-icon>
+                        </template>
+                        <template if:true={showClearButton}>
+                            <button
+                                class="slds-button slds-button_icon slds-input__icon slds-input__icon_right"
+                                type="button"
+                                title="Remove selected option"
+                                onclick={handleClearClick}>
+                                <lightning-icon
+                                    class="slds-button__icon"
+                                    icon-name="utility:close"
+                                    size="x-small"
+                                    alternative-text="Remove selected option"></lightning-icon>
+                            </button>
+                        </template>
+                    </div>
+
+                    <div
+                        id="listbox"
+                        class="slds-dropdown slds-dropdown_length-with-icon-7 slds-dropdown_fluid"
+                        role="listbox"
+                        aria-label={label}
+                        if:true={showDropdown}
+                        onmousedown={handleDropdownMouseDown}>
+                        <ul class="slds-listbox slds-listbox_vertical" role="presentation">
+                            <template for:each={normalizedOptions} for:item="option">
+                                <li key={option.key} role="presentation" class="slds-listbox__item">
+                                    <div
+                                        id={option.id}
+                                        class={option.computedClass}
+                                        role="option"
+                                        aria-selected={option.ariaSelected}
+                                        data-index={option.index}
+                                        data-value={option.value}
+                                        onclick={handleOptionClick}>
+                                        <span class="slds-media__figure slds-listbox__option-icon" if:true={option.icon}>
+                                            <lightning-icon icon-name={option.icon} size="small" alternative-text=""></lightning-icon>
+                                        </span>
+                                        <span class="slds-media__body">
+                                            <span class="slds-listbox__option-text slds-listbox__option-text_entity">{option.label}</span>
+                                            <span class="slds-listbox__option-meta slds-listbox__option-meta_entity" if:true={option.subtitle}
+                                                >{option.subtitle}</span
+                                            >
+                                        </span>
+                                    </div>
+                                </li>
+                            </template>
+                            <template if:false={hasOptions}>
+                                <li role="presentation" class="slds-listbox__item">
+                                    <div class="slds-media slds-listbox__option slds-listbox__option_plain slds-text-color_weak" data-id="no-results">
+                                        {emptyMessage}
+                                    </div>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="help" class="slds-form-element__help" if:true={hasError}>{reportedMessage}</div>
+        <div class="slds-assistive-text" aria-live="polite" aria-atomic="true">{announceMessage}</div>
+    </div>
+</template>

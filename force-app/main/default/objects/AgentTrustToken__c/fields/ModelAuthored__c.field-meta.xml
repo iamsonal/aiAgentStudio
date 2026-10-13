@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ModelAuthored__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>True when the value first appeared in the model&apos;s own output rather than in org data. The model sees org values only as tokens, so a value it wrote itself is released to any tool of the run, whatever the tool&apos;s allowed categories.</description>
+    <inlineHelpText>System-maintained. Set when Core protects a value the model wrote.</inlineHelpText>
+    <label>Model Authored</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

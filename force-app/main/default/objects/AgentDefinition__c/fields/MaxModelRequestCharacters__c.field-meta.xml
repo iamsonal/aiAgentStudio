@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MaxModelRequestCharacters__c</fullName>
+    <description>Maximum characters Core assembles into one model request, including instructions, inputs, context, and transcript.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Blank uses 50,000. Allowed range is 5,000 through 400,000. Context and history are trimmed to fit; required parts that exceed it stop the run.</inlineHelpText>
+    <label>Max Model Request Characters</label>
+    <precision>7</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

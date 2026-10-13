@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExpiresAt__c</fullName>
+    <description>Deadline for a decision. After it passes, Core applies When Approval Expires.</description>
+    <inlineHelpText>No decision is accepted after this time.</inlineHelpText>
+    <label>Expires At</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

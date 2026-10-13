@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AdmittedEffects__c</fullName>
+    <description>Immutable copy of the tool type&apos;s Effects, captured with the tool binding when this tool operation first acquires a lease. Blank on an admitted command is treated as Changes Outside Systems.</description>
+    <inlineHelpText>Recovery and retry use this value rather than the current tool type.</inlineHelpText>
+    <label>Admitted Effects</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>InOrg</fullName>
+                <default>false</default>
+                <label>Stays in This Org</label>
+            </value>
+            <value>
+                <fullName>ReadsOutside</fullName>
+                <default>false</default>
+                <label>Reads Outside Systems</label>
+            </value>
+            <value>
+                <fullName>ChangesOutside</fullName>
+                <default>false</default>
+                <label>Changes Outside Systems</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

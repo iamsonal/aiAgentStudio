@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PayloadProtectionMode__c</fullName>
+    <description>Run payload-protection mode applied when this evidence was captured.</description>
+    <inlineHelpText>Retention mode applied to invocation request and response payloads.</inlineHelpText>
+    <label>Payload Protection Mode</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Redacted</fullName>
+                <default>false</default>
+                <label>Redacted</label>
+            </value>
+            <value>
+                <fullName>Full</fullName>
+                <default>false</default>
+                <label>Full</label>
+            </value>
+            <value>
+                <fullName>Hash Only</fullName>
+                <default>false</default>
+                <label>Hash Only</label>
+            </value>
+            <value>
+                <fullName>None</fullName>
+                <default>false</default>
+                <label>None</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

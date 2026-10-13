@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ApproverUser__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Approver when Approver Type is User. The user must be active and hold Agent Kernel Human Decision.</description>
+    <inlineHelpText>Select the person who will approve each call when Approver Type is User. They need access to the approval record and the Agent Kernel Human Decision permission set.</inlineHelpText>
+    <label>Approver User</label>
+    <referenceTo>User</referenceTo>
+    <relationshipLabel>Agent Tools Approved</relationshipLabel>
+    <relationshipName>AgentToolApprovals</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

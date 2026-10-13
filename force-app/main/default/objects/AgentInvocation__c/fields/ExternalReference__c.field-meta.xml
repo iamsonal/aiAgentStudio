@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExternalReference__c</fullName>
+    <description>External-system correlation reference for this invocation attempt.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Bounded non-secret reference returned by the invoked external system.</inlineHelpText>
+    <label>External Reference</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

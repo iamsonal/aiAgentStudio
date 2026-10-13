@@ -1,0 +1,188 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <fieldset class="slds-form-element">
+        <legend class="slds-form-element__legend slds-form-element__label">{label}</legend>
+        <template if:true={helpText}>
+            <div class="slds-form-element__help slds-text-color_weak slds-m-bottom_x-small">{helpText}</div>
+        </template>
+        <template if:false={hasRows}>
+            <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small" data-empty>No fixed values.</p>
+        </template>
+        <template for:each={rowViews} for:item="row">
+            <div key={row.key} class="slds-box slds-box_x-small slds-m-bottom_x-small" data-row={row.key}>
+                <div class="slds-grid slds-gutters_x-small slds-wrap slds-grid_vertical-align-end">
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_4-of-12">
+                        <lightning-combobox
+                            label="Field"
+                            placeholder="Choose a field"
+                            options={row.fieldOptions}
+                            value={row.field}
+                            data-key={row.key}
+                            data-field
+                            disabled={readOnly}
+                            onchange={handleFieldChange}></lightning-combobox>
+                    </div>
+                    <template if:true={row.hasChoices}>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_3-of-12">
+                            <lightning-combobox
+                                label="Set to"
+                                options={row.choices}
+                                value={row.mode}
+                                data-key={row.key}
+                                data-mode
+                                disabled={readOnly}
+                                onchange={handleModeChange}></lightning-combobox>
+                        </div>
+                    </template>
+                    <div class="slds-col">
+                        <template if:true={row.isPicklist}>
+                            <lightning-combobox
+                                label="Value"
+                                placeholder="Choose a value"
+                                options={row.picklistOptions}
+                                value={row.textValue}
+                                data-key={row.key}
+                                data-value
+                                disabled={readOnly}
+                                onchange={handleValueChange}></lightning-combobox>
+                        </template>
+                        <template if:true={row.isCheckbox}>
+                            <lightning-input
+                                type="checkbox"
+                                label="Checked"
+                                checked={row.checked}
+                                data-key={row.key}
+                                data-value
+                                disabled={readOnly}
+                                onchange={handleCheckboxChange}></lightning-input>
+                        </template>
+                        <template if:true={row.isRecordPicker}>
+                            <lightning-record-picker
+                                label="Record"
+                                object-api-name={row.referenceTo}
+                                value={row.textValue}
+                                data-key={row.key}
+                                data-value
+                                disabled={readOnly}
+                                onchange={handleRecordPick}></lightning-record-picker>
+                        </template>
+                        <template if:true={row.isOffset}>
+                            <div class="slds-grid slds-gutters_xx-small" data-offset>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-input
+                                        type="number"
+                                        label="Amount"
+                                        field-level-help={row.amountHelp}
+                                        step="1"
+                                        min="-9999"
+                                        max="9999"
+                                        value={row.amount}
+                                        data-key={row.key}
+                                        data-part="amount"
+                                        disabled={readOnly}
+                                        onchange={handlePartChange}></lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-combobox
+                                        label="Unit"
+                                        options={row.units}
+                                        value={row.unit}
+                                        data-key={row.key}
+                                        data-part="unit"
+                                        disabled={readOnly}
+                                        onchange={handlePartChange}></lightning-combobox>
+                                </div>
+                            </div>
+                        </template>
+                        <template if:true={row.isPeriod}>
+                            <div class="slds-grid slds-gutters_xx-small" data-period>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-combobox
+                                        label="Which"
+                                        options={row.whichOptions}
+                                        value={row.which}
+                                        data-key={row.key}
+                                        data-part="which"
+                                        disabled={readOnly}
+                                        onchange={handlePartChange}></lightning-combobox>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-combobox
+                                        label="Period"
+                                        options={row.periodOptions}
+                                        value={row.period}
+                                        data-key={row.key}
+                                        data-part="period"
+                                        disabled={readOnly}
+                                        onchange={handlePartChange}></lightning-combobox>
+                                </div>
+                            </div>
+                        </template>
+                        <template if:true={row.isInput}>
+                            <lightning-input
+                                type={row.inputType}
+                                label={row.inputLabel}
+                                step={row.inputStep}
+                                value={row.textValue}
+                                data-key={row.key}
+                                data-value
+                                disabled={readOnly}
+                                onchange={handleValueChange}></lightning-input>
+                        </template>
+                    </div>
+                    <template if:false={readOnly}>
+                        <div class="slds-col slds-no-flex">
+                            <lightning-button-icon
+                                icon-name="utility:delete"
+                                alternative-text="Remove fixed value"
+                                title="Remove fixed value"
+                                data-key={row.key}
+                                data-remove
+                                onclick={handleRemove}></lightning-button-icon>
+                        </div>
+                    </template>
+                </div>
+                <template if:true={row.isTextArea}>
+                    <lightning-textarea
+                        label="Value"
+                        value={row.textValue}
+                        data-key={row.key}
+                        data-value
+                        disabled={readOnly}
+                        onchange={handleValueChange}></lightning-textarea>
+                </template>
+                <template if:true={row.isMultiPicklist}>
+                    <lightning-checkbox-group
+                        label="Values"
+                        options={row.multiOptions}
+                        value={row.multiValue}
+                        data-key={row.key}
+                        data-value
+                        disabled={readOnly}
+                        onchange={handleMultiChange}></lightning-checkbox-group>
+                </template>
+                <template if:true={row.waitsForValue}>
+                    <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small" data-waits>Enter a value. A row without one is not saved.</p>
+                </template>
+                <template if:true={row.summary}>
+                    <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small" data-summary>{row.summary}</p>
+                </template>
+            </div>
+        </template>
+        <template if:true={canAdd}>
+            <lightning-button label="Add Value" icon-name="utility:add" data-add onclick={handleAdd}></lightning-button>
+        </template>
+    </fieldset>
+</template>

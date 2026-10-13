@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InputSource__c</fullName>
+    <description>Origin of a model command input that appears in the transcript as its own turn: a human response, operator guidance, or engine feedback on a rejected model response. Blank means the input is already represented by another turn, such as the run input or a tool result.</description>
+    <inlineHelpText>Read-only execution evidence. Shows who supplied this turn&apos;s input: a person&apos;s reply, an operator&apos;s guidance, or Core&apos;s feedback on a rejected model response.</inlineHelpText>
+    <label>Input Source</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Human Response</fullName>
+                <default>false</default>
+                <label>Human Response</label>
+            </value>
+            <value>
+                <fullName>Operator Guidance</fullName>
+                <default>false</default>
+                <label>Operator Guidance</label>
+            </value>
+            <value>
+                <fullName>Model Feedback</fullName>
+                <default>false</default>
+                <label>Model Feedback</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsActive__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Controls whether this tool is available to new runs.</description>
+    <inlineHelpText>Check to make this tool available to its agent. Clear to retire it; pending commands that can no longer resolve an active tool fail closed.</inlineHelpText>
+    <label>Is Active</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

@@ -1,0 +1,132 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <lightning-card icon-name="standard:dashboard">
+        <h2 slot="title" class="card-title">Agent Core Health</h2>
+        <div slot="actions" class="header-actions">
+            <template lwc:if={checkedAt}>
+                <span class="checked">
+                    Checked
+                    <lightning-formatted-date-time value={checkedAt} hour="2-digit" minute="2-digit"></lightning-formatted-date-time>
+                </span>
+            </template>
+            <lightning-button-icon
+                icon-name="utility:refresh"
+                alternative-text="Refresh"
+                title="Refresh"
+                onclick={load}
+                disabled={busy}></lightning-button-icon>
+        </div>
+
+        <div class="body">
+            <template lwc:if={loading}>
+                <div class="loading">
+                    <lightning-spinner alternative-text="Checking Agent Core health" size="small"></lightning-spinner>
+                </div>
+            </template>
+
+            <template lwc:if={errorMessage}>
+                <div class="slds-notify slds-notify_alert slds-alert_error alert" role="alert">
+                    <lightning-icon icon-name="utility:error" size="x-small" variant="inverse" class="slds-m-right_x-small"></lightning-icon>
+                    <span>{errorMessage}</span>
+                </div>
+            </template>
+
+            <template lwc:if={report}>
+                <section class={verdictClass} aria-live="polite">
+                    <lightning-icon icon-name={verdict.icon} size="small" class="verdict-icon"></lightning-icon>
+                    <div class="verdict-text">
+                        <p class="verdict-title">{verdict.title}</p>
+                        <p class="verdict-scope">Runs you can see in the last {report.lookbackHours} hours</p>
+                    </div>
+                </section>
+
+                <ul class="tiles" aria-label="Run counts">
+                    <template for:each={tiles} for:item="tile">
+                        <li key={tile.key} class={tile.className}>
+                            <template lwc:if={tile.listView}>
+                                <button
+                                    class="tile-button"
+                                    data-object={tile.objectApiName}
+                                    data-list={tile.listView}
+                                    onclick={handleOpenList}
+                                    title={tile.linkTitle}>
+                                    <span class="tile-value">{tile.value}</span>
+                                    <span class="tile-label">{tile.label}</span>
+                                </button>
+                            </template>
+                            <template lwc:else>
+                                <span class="tile-value">{tile.value}</span>
+                                <span class="tile-label">{tile.label}</span>
+                            </template>
+                        </li>
+                    </template>
+                </ul>
+
+                <template lwc:if={findings.length}>
+                    <h3 class="section-title">What to do</h3>
+                    <ul class="findings">
+                        <template for:each={findings} for:item="finding">
+                            <li key={finding.code} class={finding.className}>
+                                <lightning-icon icon-name={finding.icon} size="x-small" class="finding-icon"></lightning-icon>
+                                <div class="finding-text">
+                                    <p class="finding-title">{finding.title}</p>
+                                    <p class="finding-action">{finding.action}</p>
+                                    <ul class="finding-details">
+                                        <template for:each={finding.details} for:item="detail">
+                                            <li key={detail.key}>{detail.text}</li>
+                                        </template>
+                                    </ul>
+                                    <p class="finding-code">Fix in: {finding.where}</p>
+                                </div>
+                                <template lwc:if={finding.secondaryButton}>
+                                    <lightning-button
+                                        label={finding.secondaryButton.label}
+                                        data-command={finding.secondaryButton.command}
+                                        onclick={handleFindingAction}
+                                        disabled={busy}
+                                        class="finding-button finding-secondary"></lightning-button>
+                                </template>
+                                <template lwc:if={finding.button}>
+                                    <lightning-button
+                                        label={finding.button.label}
+                                        data-command={finding.button.command}
+                                        data-object={finding.button.objectApiName}
+                                        data-list={finding.button.listView}
+                                        onclick={handleFindingAction}
+                                        disabled={busy}
+                                        class="finding-button"></lightning-button>
+                                </template>
+                            </li>
+                        </template>
+                    </ul>
+                </template>
+                <template lwc:else>
+                    <p class="all-clear">
+                        <lightning-icon icon-name="utility:success" size="x-small" class="all-clear-icon"></lightning-icon>
+                        Nothing needs attention.
+                    </p>
+                </template>
+            </template>
+        </div>
+
+        <template lwc:if={report}>
+            <div slot="footer" class="footer">
+                <span class="footer-label">Maintenance</span>
+                <lightning-button label="Install or Repair Schedules" icon-name="utility:clock" onclick={handleInstall} disabled={busy}></lightning-button>
+                <lightning-button label="Run Recovery Now" icon-name="utility:sync" onclick={handleRecover} disabled={busy}></lightning-button>
+            </div>
+        </template>
+    </lightning-card>
+</template>

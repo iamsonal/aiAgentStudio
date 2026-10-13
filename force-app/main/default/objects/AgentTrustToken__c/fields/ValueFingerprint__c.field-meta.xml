@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ValueFingerprint__c</fullName>
+    <description>Run-bound HMAC-SHA256 fingerprint used to reuse a live token without exposing the original value. Cleared on purge.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>System-generated run-bound hash used only to reuse an existing mapping.</inlineHelpText>
+    <label>Value Fingerprint</label>
+    <length>64</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

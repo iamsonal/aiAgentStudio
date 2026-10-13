@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RelayedBy__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Approval channel user that delivered a decision made outside Salesforce records, such as in a native approval process or Slack. Blank when the approver decided directly.</description>
+    <inlineHelpText>Read-only. Pluto Core sets this value; it cannot be edited.</inlineHelpText>
+    <label>Relayed By</label>
+    <referenceTo>User</referenceTo>
+    <relationshipLabel>Relayed Agent Approvals</relationshipLabel>
+    <relationshipName>RelayedAgentApprovals</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

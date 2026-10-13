@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>TranscriptTurnLimit__c</fullName>
+    <description>Maximum prior turns (tool exchanges, human responses, operator guidance) replayed to the model.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Maximum previous conversation turns included in a model request. Blank uses 10; use a whole number from 0 to 50. Set 0 to omit previous turns. Older turns are dropped first, and the request character limit may remove more.</inlineHelpText>
+    <label>Transcript Turn Limit</label>
+    <precision>2</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

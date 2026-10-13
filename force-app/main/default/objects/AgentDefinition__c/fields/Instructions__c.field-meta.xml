@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Instructions__c</fullName>
+    <description>System instructions supplied to the model for every run.</description>
+    <inlineHelpText>The system prompt the model receives on every turn: the agent&apos;s role, limits, and expected behavior. Keep tool-specific details in each tool&apos;s description.</inlineHelpText>
+    <label>Instructions</label>
+    <length>131072</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>10</visibleLines>
+</CustomField>

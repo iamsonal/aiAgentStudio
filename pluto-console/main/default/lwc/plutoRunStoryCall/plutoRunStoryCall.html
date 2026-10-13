@@ -1,0 +1,175 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <article class="call">
+        <header class="call-head">
+            <span class="call-title">{call.heading}</span>
+            <template lwc:if={hasResources}>
+                <ul class="resources" aria-label="Resources used">
+                    <template for:each={call.resources} for:item="resource">
+                        <li key={resource.key} class="resource">{resource.label}</li>
+                    </template>
+                </ul>
+            </template>
+            <template lwc:if={call.usage}>
+                <span class="usage" title={call.usage.help}>
+                    {call.usage.label}
+                    <span class="sr-only">. {call.usage.help}</span>
+                </span>
+            </template>
+            <template lwc:if={call.tokenized}>
+                <span class="flag flag_token" title="Sensitive values were replaced with tokens before this was stored">
+                    <lightning-icon icon-name="utility:lock" size="xx-small" class="flag-icon"></lightning-icon>Tokenized
+                    <span class="sr-only">. Sensitive values were replaced with tokens before this was stored</span>
+                </span>
+            </template>
+            <template lwc:if={call.truncated}>
+                <span class="flag flag_warn" title="Part of this evidence was longer than Core keeps">
+                    Truncated
+                    <span class="sr-only">. Part of this evidence was longer than Core keeps</span>
+                </span>
+            </template>
+            <template lwc:if={call.hasEvidence}>
+                <lightning-button variant="base" label={rawLabel} title={rawTitle} onclick={handleRawToggle} class="raw-toggle"></lightning-button>
+            </template>
+        </header>
+
+        <!-- One view at a time: the raw evidence Core stored, or the readable model or tool call -->
+        <template lwc:if={showRaw}>
+            <div class="raw">
+                <c-pluto-run-story-payload label="Request" value={call.evidenceRequest}></c-pluto-run-story-payload>
+                <c-pluto-run-story-payload label="Response" value={call.evidenceResponse}></c-pluto-run-story-payload>
+            </div>
+        </template>
+        <template lwc:elseif={showModel}>
+            <template lwc:if={prompt}>
+                <details class="block" open={expanded}>
+                    <summary class="block-summary">
+                        <span class="block-title">Sent to the model</span>
+                        <span class="block-note">{prompt.summary}</span>
+                        <span class="budget" title="Request size against the agent's Max Model Request Characters">
+                            <span class="budget-track" aria-hidden="true"><span class={budgetClass} style={budgetStyle}></span></span>
+                            <span class="budget-text"><span class="sr-only">Request size: </span>{prompt.budgetText}</span>
+                        </span>
+                    </summary>
+                    <div class="block-body block-body_tabs">
+                        <lightning-tabset>
+                            <lightning-tab label="Instructions" value="instructions">
+                                <div class="instructions">
+                                    <c-markdown-viewer value={prompt.instructions} compact-mode></c-markdown-viewer>
+                                </div>
+                            </lightning-tab>
+
+                            <template lwc:if={prompt.hasContexts}>
+                                <lightning-tab label={prompt.contextsLabel} value="context">
+                                    <div class="tab-stack">
+                                        <template for:each={prompt.contexts} for:item="context">
+                                            <div key={context.key} class="context">
+                                                <div class="context-meta">
+                                                    <span class="context-size">{context.size}</span>
+                                                    <template lwc:if={context.untrusted}>
+                                                        <span
+                                                            class="flag flag_data"
+                                                            title="Record data. The model is told to treat it as information, never instructions."
+                                                            >Untrusted data</span
+                                                        >
+                                                    </template>
+                                                    <template lwc:if={context.truncated}>
+                                                        <span class="flag flag_warn">Truncated</span>
+                                                    </template>
+                                                </div>
+                                                <c-pluto-run-story-payload label={context.name} value={context.content}></c-pluto-run-story-payload>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </lightning-tab>
+                            </template>
+
+                            <template lwc:if={prompt.hasTranscript}>
+                                <lightning-tab label={prompt.transcriptLabel} value="conversation">
+                                    <div class="tab-stack">
+                                        <template lwc:if={prompt.transcriptTruncated}>
+                                            <p class="note">Older messages were left out to stay within the agent's transcript limit.</p>
+                                        </template>
+                                        <ol class="turns">
+                                            <template for:each={prompt.transcript} for:item="turn">
+                                                <li key={turn.key} class={turn.className}>
+                                                    <c-pluto-run-story-payload
+                                                        label={turn.label}
+                                                        value={turn.content}
+                                                        empty-text="(empty)"></c-pluto-run-story-payload>
+                                                </li>
+                                            </template>
+                                        </ol>
+                                    </div>
+                                </lightning-tab>
+                            </template>
+
+                            <template lwc:if={prompt.hasTools}>
+                                <lightning-tab label={prompt.toolsLabel} value="tools">
+                                    <ul class="tools">
+                                        <template for:each={tools} for:item="tool">
+                                            <li key={tool.key} class="tool">
+                                                <code class="tool-name">{tool.name}</code>
+                                                <template lwc:if={tool.pageReference}>
+                                                    <c-pluto-link variant="icon" page-reference={tool.pageReference} label={tool.openLabel}></c-pluto-link>
+                                                </template>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </lightning-tab>
+                            </template>
+                        </lightning-tabset>
+                    </div>
+                </details>
+            </template>
+
+            <template lwc:if={reply}>
+                <details class="block" open={expanded}>
+                    <summary class="block-summary">
+                        <span class="block-title">Model replied</span>
+                        <span class="block-note">{reply.summary}</span>
+                    </summary>
+                    <div class="block-body">
+                        <dl class="facts">
+                            <template for:each={replyFacts} for:item="fact">
+                                <div key={fact.key} class="fact">
+                                    <dt class="fact-label">{fact.label}</dt>
+                                    <dd class={fact.valueClass}>{fact.value}</dd>
+                                </div>
+                            </template>
+                        </dl>
+                        <template lwc:if={reply.error}>
+                            <p class="error"><strong>{reply.error.title}.</strong> {reply.error.detail}</p>
+                        </template>
+                        <template for:each={reply.toolCalls} for:item="toolCall">
+                            <c-pluto-run-story-payload key={toolCall.key} label={toolCall.label} value={toolCall.input}></c-pluto-run-story-payload>
+                        </template>
+                        <template lwc:if={reply.hasOutput}>
+                            <c-pluto-run-story-payload label="Answer" value={reply.output}></c-pluto-run-story-payload>
+                        </template>
+                    </div>
+                </details>
+            </template>
+        </template>
+        <template lwc:elseif={showTool}>
+            <template lwc:if={toolRun.externalReference}>
+                <p class="note">External reference <code>{toolRun.externalReference}</code></p>
+            </template>
+            <template lwc:if={toolRun.error}>
+                <p class="error"><strong>{toolRun.error.title}.</strong> {toolRun.error.detail}</p>
+            </template>
+        </template>
+    </article>
+</template>

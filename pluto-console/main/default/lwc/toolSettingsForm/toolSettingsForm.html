@@ -1,0 +1,307 @@
+<!--
+    This file is part of Pluto. It is licensed under the GNU Affero General
+    Public License, version 3 only. See the LICENSE file at the root of this
+    repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+
+    The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+    uses only Pluto's public interface stay under its own license.
+
+    SPDX-License-Identifier: AGPL-3.0-only
+
+    Copyright (c) 2026 Sonal
+-->
+
+<template>
+    <template if:true={undeclared}>
+        <lightning-textarea
+            label="Settings"
+            field-level-help="This tool type does not describe its settings. Enter the JSON its developer documented."
+            value={undeclaredJson}
+            read-only={readOnly}
+            message-when-value-missing="Enter JSON"
+            data-undeclared
+            onchange={handleUndeclaredChange}></lightning-textarea>
+        <template if:true={undeclaredError}>
+            <p class="slds-text-color_error slds-text-body_small" data-json-error>{undeclaredError}</p>
+        </template>
+    </template>
+    <template for:each={controls} for:item="control">
+        <div key={control.key} class="slds-m-bottom_small" data-setting={control.name}>
+            <template if:true={control.isObject}>
+                <c-smart-lookup
+                    label={control.label}
+                    placeholder="Search objects..."
+                    value={control.textValue}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    onsearch={handleObjectSearch}
+                    onchange={handleObjectChange}></c-smart-lookup>
+            </template>
+            <template if:true={control.isRecordType}>
+                <lightning-combobox
+                    label={control.label}
+                    field-level-help={control.helpText}
+                    options={control.recordTypeOptions}
+                    value={control.textValue}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    onchange={handleValueChange}></lightning-combobox>
+            </template>
+            <template if:true={control.isFields}>
+                <lightning-dual-listbox
+                    label={control.label}
+                    field-level-help={control.helpText}
+                    source-label="Available"
+                    selected-label="Selected"
+                    options={control.fieldOptions}
+                    value={control.fieldList}
+                    max={control.maxFields}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    onchange={handleFieldsChange}></lightning-dual-listbox>
+            </template>
+            <template if:true={control.isFieldValues}>
+                <c-tool-field-values-editor
+                    label={control.label}
+                    help-text={control.helpText}
+                    fields={control.fields}
+                    value={control.fieldValues}
+                    read-only={control.disabled}
+                    data-name={control.name}
+                    onvalueschange={handleFieldValuesChange}></c-tool-field-values-editor>
+            </template>
+            <template if:true={control.isQuery}>
+                <c-tool-query-editor
+                    label={control.label}
+                    required={control.required}
+                    value={control.textValue}
+                    disabled={control.disabled}
+                    data-name={control.name}
+                    onquerychange={handleQueryChange}></c-tool-query-editor>
+            </template>
+            <template if:true={control.isReport}>
+                <c-smart-lookup
+                    label={control.label}
+                    placeholder="Search reports..."
+                    value={control.textValue}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    onsearch={handleReportSearch}
+                    onchange={handleLookupChange}></c-smart-lookup>
+                <template if:true={control.helpText}>
+                    <p class="slds-text-body_small slds-text-color_weak">{control.helpText}</p>
+                </template>
+            </template>
+            <template if:true={control.isQueue}>
+                <lightning-combobox
+                    label={control.label}
+                    field-level-help={control.helpText}
+                    placeholder="Choose a queue"
+                    options={control.queueOptions}
+                    value={control.textValue}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    onchange={handleValueChange}></lightning-combobox>
+            </template>
+            <template if:true={control.isNamedCredential}>
+                <lightning-combobox
+                    label={control.label}
+                    field-level-help={control.helpText}
+                    placeholder="Choose a Named Credential"
+                    options={control.namedCredentialOptions}
+                    value={control.textValue}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    onchange={handleValueChange}></lightning-combobox>
+            </template>
+            <template if:true={control.isRecord}>
+                <lightning-radio-group
+                    label={control.label}
+                    options={control.recordKindOptions}
+                    value={control.recordKind}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    data-record-kind
+                    onchange={handleRecordKindChange}></lightning-radio-group>
+                <template if:true={control.helpText}>
+                    <p class="slds-text-body_small slds-text-color_weak" data-record-help>{control.helpText}</p>
+                </template>
+                <template if:true={control.isRecordPicker}>
+                    <lightning-record-picker
+                        class="slds-m-top_x-small"
+                        label={control.recordObjectLabel}
+                        object-api-name={control.recordObjectApiName}
+                        value={control.textValue}
+                        data-name={control.name}
+                        disabled={control.disabled}
+                        onchange={handleRecordPick}></lightning-record-picker>
+                </template>
+                <template if:true={control.isOtherRecord}>
+                    <lightning-input
+                        class="slds-m-top_x-small"
+                        label="Record Id"
+                        field-level-help="The record's feed must be tracked."
+                        value={control.textValue}
+                        data-name={control.name}
+                        disabled={control.disabled}
+                        onchange={handleValueChange}></lightning-input>
+                </template>
+            </template>
+            <template if:true={control.isTextList}>
+                <lightning-textarea
+                    label={control.label}
+                    field-level-help={control.helpText}
+                    placeholder={control.placeholder}
+                    value={control.listText}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    onchange={handleTextListChange}></lightning-textarea>
+            </template>
+            <template if:true={control.isKeyValues}>
+                <fieldset class="slds-form-element">
+                    <legend class="slds-form-element__label">
+                        {control.label}
+                        <template if:true={control.helpText}>
+                            <lightning-helptext content={control.helpText}></lightning-helptext>
+                        </template>
+                    </legend>
+                    <template for:each={control.keyValueRows} for:item="row">
+                        <div key={row.key} class="slds-grid slds-gutters_x-small slds-grid_vertical-align-end slds-m-bottom_xx-small" data-key-value-row>
+                            <div class="slds-col">
+                                <lightning-input
+                                    label="Name"
+                                    variant="label-inline"
+                                    value={row.name}
+                                    data-name={control.name}
+                                    data-key={row.key}
+                                    data-part="name"
+                                    disabled={control.disabled}
+                                    onchange={handleKeyValueEdit}></lightning-input>
+                            </div>
+                            <div class="slds-col">
+                                <template if:true={control.hasKeyValueChoices}>
+                                    <lightning-combobox
+                                        label="Value"
+                                        variant="label-inline"
+                                        options={control.keyValueChoices}
+                                        value={row.value}
+                                        data-name={control.name}
+                                        data-key={row.key}
+                                        data-part="value"
+                                        disabled={control.disabled}
+                                        onchange={handleKeyValueEdit}></lightning-combobox>
+                                </template>
+                                <template if:false={control.hasKeyValueChoices}>
+                                    <lightning-input
+                                        label="Value"
+                                        variant="label-inline"
+                                        value={row.value}
+                                        data-name={control.name}
+                                        data-key={row.key}
+                                        data-part="value"
+                                        disabled={control.disabled}
+                                        onchange={handleKeyValueEdit}></lightning-input>
+                                </template>
+                            </div>
+                            <template if:false={control.disabled}>
+                                <div class="slds-col slds-no-flex">
+                                    <lightning-button-icon
+                                        icon-name="utility:delete"
+                                        alternative-text="Remove row"
+                                        data-name={control.name}
+                                        data-key={row.key}
+                                        onclick={handleKeyValueRemove}></lightning-button-icon>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                    <template if:false={control.disabled}>
+                        <lightning-button
+                            variant="base"
+                            label="Add row"
+                            icon-name="utility:add"
+                            data-name={control.name}
+                            data-add-row
+                            onclick={handleKeyValueAdd}></lightning-button>
+                    </template>
+                </fieldset>
+            </template>
+            <template if:true={control.isFlow}>
+                <lightning-combobox
+                    label={control.label}
+                    field-level-help={control.helpText}
+                    placeholder="Choose an active autolaunched Flow"
+                    options={control.flowOptions}
+                    value={control.textValue}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    onchange={handleValueChange}></lightning-combobox>
+            </template>
+            <template if:true={control.isCheckbox}>
+                <lightning-input
+                    type="checkbox"
+                    label={control.label}
+                    field-level-help={control.helpText}
+                    checked={control.checked}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    onchange={handleCheckboxChange}></lightning-input>
+            </template>
+            <template if:true={control.isPicklist}>
+                <lightning-combobox
+                    label={control.label}
+                    field-level-help={control.helpText}
+                    options={control.options}
+                    value={control.textValue}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    onchange={handleValueChange}></lightning-combobox>
+            </template>
+            <template if:true={control.isTextArea}>
+                <lightning-textarea
+                    label={control.label}
+                    field-level-help={control.helpText}
+                    value={control.textValue}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    onchange={handleValueChange}></lightning-textarea>
+            </template>
+            <template if:true={control.isNumber}>
+                <lightning-input
+                    type="number"
+                    label={control.label}
+                    field-level-help={control.helpText}
+                    placeholder={control.placeholder}
+                    value={control.textValue}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    onchange={handleNumberChange}></lightning-input>
+            </template>
+            <template if:true={control.isString}>
+                <lightning-input
+                    label={control.label}
+                    field-level-help={control.helpText}
+                    placeholder={control.placeholder}
+                    value={control.textValue}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    onchange={handleValueChange}></lightning-input>
+            </template>
+            <template if:true={control.isJson}>
+                <lightning-textarea
+                    label={control.label}
+                    field-level-help={control.helpText}
+                    value={control.jsonText}
+                    data-name={control.name}
+                    disabled={control.disabled}
+                    onchange={handleJsonChange}></lightning-textarea>
+                <template if:true={control.jsonError}>
+                    <p class="slds-text-color_error slds-text-body_small" data-json-error>{control.jsonError}</p>
+                </template>
+            </template>
+            <template if:true={control.missing}>
+                <p class="slds-text-color_error slds-text-body_small" data-missing>{control.missingMessage}</p>
+            </template>
+        </div>
+    </template>
+</template>

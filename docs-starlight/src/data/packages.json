@@ -1,0 +1,20 @@
+{
+    "version": "2.0.0",
+    "packages": [
+        {
+            "name": "Pluto Core",
+            "purpose": "Runs agents. Install it first.",
+            "versionId": "04tgK000000RSxtQAG"
+        },
+        {
+            "name": "Pluto Model Adapters",
+            "purpose": "Connects OpenAI and other Responses API endpoints.",
+            "versionId": "04tgK000000RVAzQAO"
+        },
+        {
+            "name": "Pluto Console",
+            "purpose": "The admin console. Optional.",
+            "versionId": "04tgK000000RefhQAC"
+        }
+    ]
+}

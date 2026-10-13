@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProviderRequestId__c</fullName>
+    <description>System-maintained Provider Request Id for this durable unit of agent work.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Read-only execution evidence. Core manages command state, leases, retries, and concurrency values.</inlineHelpText>
+    <label>Provider Request ID</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

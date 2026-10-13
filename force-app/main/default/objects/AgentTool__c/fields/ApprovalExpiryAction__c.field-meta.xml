@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ApprovalExpiryAction__c</fullName>
+    <description>What Core does when nobody decides in time. The tool never runs after an expired approval.</description>
+    <inlineHelpText>Deny and Continue tells the agent the call was not approved and lets it continue. Pause for Operator pauses the run for an administrator.</inlineHelpText>
+    <label>When Approval Expires</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Deny and Continue</fullName>
+                <default>true</default>
+                <label>Deny and Continue</label>
+            </value>
+            <value>
+                <fullName>Pause for Operator</fullName>
+                <default>false</default>
+                <label>Pause for Operator</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -1,0 +1,117 @@
+/*
+ * This file is part of Pluto. It is licensed under the GNU Affero General
+ * Public License, version 3 only. See the LICENSE file at the root of this
+ * repository, or https://www.gnu.org/licenses/agpl-3.0.html.
+ *
+ * The Pluto Extension Exception in the LICENSE-EXCEPTION file lets code that
+ * uses only Pluto's public interface stay under its own license.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * Copyright (c) 2026 Sonal
+ */
+
+/* Fill the grid cell, so payloads shown side by side share one height. */
+:host {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.payload {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.payload-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-height: 2rem;
+}
+
+.payload-label {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--slds-g-color-neutral-base-40, #5c5c5c);
+}
+
+.payload-copy-error {
+    margin: 0 0 0.375rem;
+    font-size: 0.75rem;
+    color: var(--slds-g-color-warning-base-40, #8c4b02);
+}
+
+.payload-empty {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--slds-g-color-neutral-base-40, #5c5c5c);
+}
+
+.json-sensitive {
+    border-radius: 0.25rem;
+    background: var(--slds-g-color-palette-purple-95, #f2eafe);
+    color: var(--slds-g-color-palette-purple-40, #7526e3);
+    padding: 0 0.25rem;
+}
+
+.json {
+    flex: 1 1 auto;
+    margin: 0;
+    max-height: 22rem;
+    overflow: auto;
+    padding: 0.75rem 0.875rem;
+    border: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+    border-radius: 0.25rem;
+    background: var(--slds-g-color-neutral-base-95, #f3f3f3);
+    color: var(--slds-g-color-neutral-base-10, #181818);
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.json:focus-visible {
+    outline: 2px solid var(--slds-g-color-brand-base-60, #1b96ff);
+    outline-offset: 2px;
+}
+
+.json-key {
+    color: var(--slds-g-color-palette-blue-40, #0b5cab);
+}
+
+.json-string {
+    color: var(--slds-g-color-palette-green-40, #2e7d32);
+}
+
+.json-number {
+    color: var(--slds-g-color-palette-orange-40, #b35c00);
+}
+
+.json-literal {
+    color: var(--slds-g-color-palette-pink-40, #a1227f);
+}
+
+.json-punct,
+.json-plain {
+    color: var(--slds-g-color-neutral-base-40, #5c5c5c);
+}
+
+.payload-note {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--slds-g-color-neutral-base-40, #5c5c5c);
+}
+
+.payload-note-icon {
+    --slds-c-icon-color-foreground-default: var(--slds-g-color-palette-purple-40, #7526e3);
+}

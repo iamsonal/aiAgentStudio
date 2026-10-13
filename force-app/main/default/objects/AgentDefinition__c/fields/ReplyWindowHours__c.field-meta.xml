@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ReplyWindowHours__c</fullName>
+    <description>Makes the agent conversational. After each answer the run waits this many hours for the person&apos;s next message, with the conversation so far in the transcript. Blank ends the run with its first answer.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Blank ends the run after its answer. Use a whole number from 1 to 168 to keep the run open for the next reply; it ends with its last answer when the window expires. Leave blank for agents used by channel routes.</inlineHelpText>
+    <label>Wait for Reply (Hours)</label>
+    <precision>3</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

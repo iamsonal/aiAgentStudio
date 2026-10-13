@@ -10,6 +10,10 @@ __pycache__
 # Robot Framework results
 robot/aiAgentStudio/results/
 
+# CumulusCI Apex test results
+test-results/*
+!test-results/.gitkeep
+
 # Salesforce cache
 .sf/
 .sfdx/
@@ -31,6 +35,9 @@ yarn-error.log*
 
 # Dependency directories
 node_modules/
+
+# Lock files. Every install resolves the newest versions package.json allows.
+package-lock.json
 
 # Eslint cache
 .eslintcache
@@ -62,10 +69,15 @@ target/
 /.cci/
 /.idea/
 
-# aiAgentStudioAddons/
-xtras/
-
-*.sh
-
-
 **/graphql.config.yml
+.agents/
+/.claude/
+/openspec/
+/coverage-reports/
+.cursor/
+/brand/
+/scripts/
+/AGENTS.md
+/DESIGN.md
+/packages/
+unpackagedMetadata/
