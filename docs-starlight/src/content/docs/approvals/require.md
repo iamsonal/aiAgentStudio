@@ -9,19 +9,29 @@ A tool can wait for a person to approve each call before it runs. The run waits,
 Approvals need an agent with an [Agent Execution Identity](/setup/execution-identity/). An agent without one runs as the starter and cannot wait for someone else.
 :::
 
+## Choose Approval
+
+Each Agent Tool has an **Approval** field. It names who decides each call.
+
+| Approval | What happens |
+| --- | --- |
+| Not Required (the default) | Every call runs. The agent's policy is not asked. |
+| Always Required | Every call waits for the tool's Approver Type. The agent's policy is not asked. |
+| Decided by Policy | The agent's policy decides each call: run it, deny it, or wait for a user or queue the policy names. See [Approve by rule](/approvals/policy/). |
+
 ## Turn it on
 
 On the Agent Tool:
 
 | Field | What to enter |
 | --- | --- |
-| Always Require Approval | Checked. Every call waits for approval. |
+| Approval | Always Required. |
 | Approver Type | Who decides. See below. |
 | Approver User or Approver Queue | Depends on Approver Type. |
-| Approval Timeout (Hours) | How long the approver has. Blank is 24. |
-| When Approval Expires | **Deny and Continue** (the default): the agent is told the call was not approved and carries on. **Pause for Operator**: the run pauses with `WAIT_EXPIRED` for an operator. |
+| Approval Timeout (Minutes) | How long the approver has, from 1 to 10080 (7 days). Blank is 1440 (24 hours). |
+| When Approval Expires | Required. **Deny and Continue**: the agent is told the call was not approved and carries on. **Pause for Operator**: the run pauses with `WAIT_EXPIRED` for an operator. |
 
-Leave **Always Require Approval** unchecked if only some calls need approval, such as refunds over $200. A policy class then decides call by call, and still sends approvals to the Approver Type. See [Approve by rule](/approvals/policy/).
+The tool page saves without an error when the setup is valid. It refuses an approver, Approval Timeout, or When Approval Expires on a tool whose Approval is Not Required.
 
 ## Approver types
 
@@ -44,7 +54,7 @@ The person who started the run may approve it when they are the assigned approve
 
 ## What the agent tells the approver
 
-For a tool that needs approval, Core asks the model for the change, the facts behind it, and what the approver should check. The approver sees this as the agent's explanation. Core does not check it, so treat it as a claim, not proof.
+For a tool whose Approval is Always Required or Decided by Policy, Core asks the model what the call will do, the facts behind it, and each condition it did not confirm with a tool. The approver sees this as the agent's explanation. Core does not check it, so treat it as a claim, not proof.
 
 ## What the run looks like
 

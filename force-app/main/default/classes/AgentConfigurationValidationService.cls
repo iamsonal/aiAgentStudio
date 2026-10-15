@@ -105,10 +105,19 @@ global inherited sharing class AgentConfigurationValidationService {
                         'UNSCOPED_RECORD_UPDATE',
                         'AgentTool[' + tool.DeveloperName__c + '].ImplementationConfiguration',
                         'This Update Record tool may change any record the execution user can edit, chosen by the model. Text in records or emails can steer ' +
-                        'that choice. Check Anchor Record Only, or check Always Require Approval.'
+                        'that choice. Check Anchor Record Only, or set Approval to Always Required.'
                     );
                 }
             }
+        }
+        if (!String.isBlank(definition.ToolAuthorizationPolicyClass__c) && !hasPolicyDecidedTool(tools)) {
+            warning(
+                report,
+                'POLICY_NEVER_RUNS',
+                'AgentDefinition.ToolAuthorizationPolicyClass',
+                'The Tool Authorization Policy Class runs only for tools whose Approval is Decided by Policy, and this agent has none. ' +
+                'Set Approval to Decided by Policy on the tools the policy should decide, or clear the policy.'
+            );
         }
         warning(
             report,
@@ -136,11 +145,20 @@ global inherited sharing class AgentConfigurationValidationService {
         return report;
     }
 
+    private static Boolean hasPolicyDecidedTool(List<AgentTool__c> tools) {
+        for (AgentTool__c tool : tools) {
+            if (AgentApprovalService.mode(tool) == AgentKernelModels.APPROVAL_DECIDED_BY_POLICY) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** An Update Record tool without approval whose record the model picks freely. */
     private static Boolean isUnscopedUpdate(AgentTool__c tool) {
         AgentToolType__mdt toolType = AgentToolTypeService.toolType(tool);
         if (
-            tool.RequiresApproval__c == true ||
+            AgentApprovalService.mode(tool) == AgentKernelModels.APPROVAL_ALWAYS_REQUIRED ||
             toolType == null ||
             toolType.ToolClass__c == null ||
             toolType.ToolClass__c.trim() != 'StandardUpdateRecordTool'
@@ -220,7 +238,7 @@ global inherited sharing class AgentConfigurationValidationService {
                 ToolType__c,
                 ImplementationConfiguration__c,
                 InputSchema__c,
-                RequiresApproval__c,
+                ApprovalMode__c,
                 AllowedSensitiveDataCategories__c
             FROM AgentTool__c
             WHERE AgentDefinition__c = :definitionId AND IsActive__c = TRUE

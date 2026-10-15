@@ -300,11 +300,19 @@ public class AgentKernelTestFactory {
             Description__c = 'A test-only kernel tool.',
             ToolType__c = AgentToolTypeTestFixtures.IN_ORG,
             InputSchema__c = inputSchema,
-            RequiresApproval__c = false,
             IsActive__c = true,
             SortOrder__c = 1
         );
         insert tool;
+        return tool;
+    }
+
+    /** A tool whose calls the agent's policy decides. Set the definition's policy class first. */
+    public static AgentTool__c createPolicyTool(Id definitionId, String developerName) {
+        AgentTool__c tool = createTool(definitionId, developerName, '{"type":"object"}');
+        tool.ApprovalMode__c = AgentKernelModels.APPROVAL_DECIDED_BY_POLICY;
+        tool.ApprovalExpiryAction__c = AgentKernelModels.APPROVAL_EXPIRY_DENY;
+        updateRecord(tool);
         return tool;
     }
 

@@ -15,7 +15,8 @@
 global with sharing class KernelTestToolPolicy implements IToolAuthorizationPolicy {
     global static AgentKernelModels.ToolAuthorizationDecision configuredDecision = AgentKernelModels.ToolAuthorizationDecision.Allow;
     global static String configuredReason = 'Approval required by test policy.';
-    global static Id configuredApproverId;
+    global static Id configuredApproverUserId;
+    global static String configuredApproverQueue;
     global static Boolean performDml = false;
     global static Boolean throwUnexpected = false;
     global static AgentKernelModels.ToolAuthorizationRequest lastRequest;
@@ -30,11 +31,19 @@ global with sharing class KernelTestToolPolicy implements IToolAuthorizationPoli
         if (throwUnexpected) {
             throw new AgentKernelException.ConfigurationException('Unexpected policy failure.');
         }
-        AgentKernelModels.ToolAuthorizationResponse response = new AgentKernelModels.ToolAuthorizationResponse();
-        response.decision = deniedToolNames.contains(request.toolName) ? AgentKernelModels.ToolAuthorizationDecision.Deny : configuredDecision;
-        response.reason = configuredReason;
-        response.approverId = configuredApproverId;
-        response.timeoutSeconds = 3600;
-        return response;
+        if (deniedToolNames.contains(request.toolName) || configuredDecision == AgentKernelModels.ToolAuthorizationDecision.Deny) {
+            return request.deny(configuredReason);
+        }
+        if (configuredDecision != AgentKernelModels.ToolAuthorizationDecision.RequireApproval) {
+            return request.allow();
+        }
+        AgentKernelModels.ToolApprovalResponse held = request.requireApproval(configuredReason).withTimeoutMinutes(60);
+        if (configuredApproverQueue != null) {
+            held.byQueue(configuredApproverQueue);
+        }
+        if (configuredApproverUserId != null) {
+            held.byUser(configuredApproverUserId);
+        }
+        return held;
     }
 }

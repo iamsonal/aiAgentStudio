@@ -910,7 +910,12 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AgentTool__c.ApprovalTimeoutHours__c</field>
+        <field>AgentTool__c.ApprovalMode__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>AgentTool__c.ApprovalTimeoutMinutes__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -951,11 +956,6 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>AgentTool__c.IsActive__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AgentTool__c.RequiresApproval__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>

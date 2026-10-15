@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ApproverType__c</fullName>
-    <description>How Core chose the approver, copied from the tool or authorization policy when the approval was requested.</description>
+    <description>How Core chose the approver, copied from the tool when the approval was requested. When the authorization policy named the approver, this is User or Queue.</description>
     <inlineHelpText>User, Queue, Anchor Record Owner and Requester&apos;s Manager approvals are decided by the record owner or a direct queue member. Approval Process approvals are decided only through an installed integration that passes the approval process decision to Core.</inlineHelpText>
     <label>Approver Type</label>
     <required>true</required>

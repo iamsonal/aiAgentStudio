@@ -147,11 +147,12 @@ private class InlineToolExecutionTest {
     @IsTest
     static void aCallThatNeedsApprovalStopsTheRest() {
         KernelTestToolPolicy.configuredDecision = AgentKernelModels.ToolAuthorizationDecision.RequireApproval;
+        KernelTestToolPolicy.configuredApproverUserId = AgentKernelTestFactory.approverUser();
         AgentDefinition__c definition = multiToolAgent();
         definition.ToolAuthorizationPolicyClass__c = 'KernelTestToolPolicy';
         AgentKernelTestFactory.updateRecord(definition);
-        AgentKernelTestFactory.createTool(definition.Id, 'tool_a', '{"type":"object"}');
-        AgentKernelTestFactory.createTool(definition.Id, 'tool_b', '{"type":"object"}');
+        AgentKernelTestFactory.createPolicyTool(definition.Id, 'tool_a');
+        AgentKernelTestFactory.createPolicyTool(definition.Id, 'tool_b');
         scriptCalls(new List<String>{ 'tool_a', 'tool_b' });
         AgentKernelModels.StartResult started = AgentKernelTestFactory.startRunWithoutDispatch(definition);
 
@@ -287,7 +288,7 @@ private class InlineToolExecutionTest {
         AgentKernelTestFactory.updateRecord(definition);
         KernelTestToolPolicy.deniedToolNames.add('tool_b');
         typedTool(definition.Id, 'tool_a', AgentToolTypeTestFixtures.READ_ONLY_EXTERNAL);
-        AgentKernelTestFactory.createTool(definition.Id, 'tool_b', '{"type":"object"}');
+        AgentKernelTestFactory.createPolicyTool(definition.Id, 'tool_b');
         scriptCalls(new List<String>{ 'tool_a', 'tool_b' });
         AgentKernelModels.StartResult started = AgentKernelTestFactory.startRunWithoutDispatch(definition);
         runModelWorker(started.runId);
@@ -304,7 +305,7 @@ private class InlineToolExecutionTest {
         AgentDefinition__c definition = multiToolAgent();
         definition.ToolAuthorizationPolicyClass__c = 'KernelTestToolPolicy';
         AgentKernelTestFactory.updateRecord(definition);
-        AgentKernelTestFactory.createTool(definition.Id, 'tool_a', '{"type":"object"}');
+        AgentKernelTestFactory.createPolicyTool(definition.Id, 'tool_a');
         KernelTestModelProvider.script = null;
         scriptCalls(new List<String>{ 'tool_a' });
         AgentKernelModels.StartResult started = AgentKernelTestFactory.startRunWithoutDispatch(definition);

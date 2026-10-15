@@ -71,7 +71,11 @@
         <layoutColumns>
             <layoutItems>
                 <behavior>Edit</behavior>
-                <field>RequiresApproval__c</field>
+                <field>ApprovalMode__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Edit</behavior>
+                <field>ApproverType__c</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
@@ -85,11 +89,7 @@
         <layoutColumns>
             <layoutItems>
                 <behavior>Edit</behavior>
-                <field>ApproverType__c</field>
-            </layoutItems>
-            <layoutItems>
-                <behavior>Edit</behavior>
-                <field>ApprovalTimeoutHours__c</field>
+                <field>ApprovalTimeoutMinutes__c</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>

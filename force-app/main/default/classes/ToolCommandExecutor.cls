@@ -203,7 +203,7 @@ public without sharing class ToolCommandExecutor {
             );
             return;
         }
-        if (!evaluatePolicy(run, command, tool)) {
+        if (!authorize(run, command, tool)) {
             return;
         }
         // Built again in this transaction, so a value removed since the model's turn is refused before the tool runs.
@@ -451,58 +451,36 @@ public without sharing class ToolCommandExecutor {
         submit(outcome);
     }
 
-    private Boolean evaluatePolicy(AgentRun__c run, AgentCommand__c command, AgentTool__c tool) {
-        Boolean approvalValid;
-        AgentKernelModels.ToolAuthorizationResponse response;
-        // Only the policy evaluation is policy's fault; approval assignment and the
-        // wait transition below report their own errors.
-        try {
-            approvalValid =
-                command.PolicyApproved__c == true &&
-                !String.isBlank(command.ApprovalFingerprint__c) &&
-                command.ApprovalFingerprint__c == ToolApprovalFingerprint.compute(command, tool, definition);
-            AgentKernelModels.ToolAuthorizationRequest request = new AgentKernelModels.ToolAuthorizationRequest();
-            request.runId = run.Id;
-            request.commandId = command.Id;
-            request.definitionId = run.AgentDefinition__c;
-            request.toolName = command.ToolName__c;
-            request.input = command.Input__c;
-            request.operationKey = command.OperationKey__c;
-            request.attemptNumber = completedAttemptCount;
-            request.hasExternalEffects = AgentToolTypeService.admittedEffects(command) != AgentToolTypeService.EFFECTS_IN_ORG;
-            request.initiatingActorId = run.InitiatingUser__c;
-            request.attendedById = run.AttendedBy__c;
-            request.resolvedPrincipalId = run.ResolvedPrincipalUser__c;
-            request.executionIdentityId = run.ExecutionIdentity__c;
-            if (String.isBlank(definition.ToolAuthorizationPolicyClass__c)) {
-                response = defaultPolicy(tool);
-            } else {
-                Exception policyFailure;
-                ExtensionExecutionGuard.Boundary boundary = ExtensionExecutionGuard.open();
-                try {
-                    response = AgentExtensionInvoker.evaluatePolicy(definition, request);
-                } catch (Exception caughtFailure) {
-                    policyFailure = caughtFailure;
-                }
-                ExtensionExecutionGuard.Result isolation = ExtensionExecutionGuard.close(boundary);
-                if (isolation.budgetExceeded) {
-                    pauseForIntervention('TOOL_AUTHORIZATION_POLICY_BUDGET_EXCEEDED', 'Tool authorization policy exceeded its governor budget.');
-                    return false;
-                }
-                if (isolation.performedDml || isolation.performedCallout || isolation.performedProhibitedAsync() || policyFailure instanceof CalloutException) {
-                    pauseForIntervention('TOOL_AUTHORIZATION_POLICY_INVALID', 'Tool authorization policy evaluation must remain query-only.');
-                    return false;
-                }
-                if (policyFailure != null) {
-                    throw policyFailure;
-                }
+    /**
+     * Not Required runs every call. Always Required waits for the tool's
+     * approver until a person approves this exact call. Decided by Policy asks
+     * the policy: a deny always stops the call, an approved call runs, and a
+     * hold waits for the approver the policy names.
+     */
+    private Boolean authorize(AgentRun__c run, AgentCommand__c command, AgentTool__c tool) {
+        String approvalMode = AgentApprovalService.mode(tool);
+        if (approvalMode == AgentKernelModels.APPROVAL_NOT_REQUIRED) {
+            return true;
+        }
+        Boolean approved =
+            command.PolicyApproved__c == true &&
+            !String.isBlank(command.ApprovalFingerprint__c) &&
+            command.ApprovalFingerprint__c == ToolApprovalFingerprint.compute(command, tool, definition);
+        if (approvalMode == AgentKernelModels.APPROVAL_ALWAYS_REQUIRED) {
+            if (!approved) {
+                waitForApprover(run, command, tool, null);
             }
-        } catch (Exception policyFailure) {
-            pauseForIntervention('TOOL_AUTHORIZATION_POLICY_ERROR', 'Tool authorization policy evaluation failed closed.');
+            return approved;
+        }
+        if (String.isBlank(definition.ToolAuthorizationPolicyClass__c)) {
+            pauseForIntervention(
+                'TOOL_AUTHORIZATION_POLICY_INVALID',
+                'Tool ' + tool.DeveloperName__c + ' is Decided by Policy, but the agent has no Tool Authorization Policy Class.'
+            );
             return false;
         }
-        if (response == null || response.decision == null) {
-            pauseForIntervention('TOOL_AUTHORIZATION_POLICY_INVALID', 'Tool authorization policy returned no decision.');
+        AgentKernelModels.ToolAuthorizationResponse response = evaluatePolicy(run, command, tool);
+        if (response == null) {
             return false;
         }
         if (response.decision == AgentKernelModels.ToolAuthorizationDecision.Deny) {
@@ -512,53 +490,109 @@ public without sharing class ToolCommandExecutor {
             );
             return false;
         }
-        Boolean policyRequiresApproval = response.decision == AgentKernelModels.ToolAuthorizationDecision.RequireApproval;
-        if (!policyRequiresApproval && response.decision != AgentKernelModels.ToolAuthorizationDecision.Allow) {
-            pauseForIntervention('TOOL_AUTHORIZATION_POLICY_INVALID', 'Tool authorization policy returned an unsupported decision.');
-            return false;
-        }
-        if (approvalValid || (!policyRequiresApproval && tool.RequiresApproval__c != true)) {
+        // A person already approved this exact call; asking again would never end for a policy that names someone new.
+        if (approved || response.decision == AgentKernelModels.ToolAuthorizationDecision.Allow) {
             return true;
         }
-        if (!ExecutionIdentityService.usesIdentity(run)) {
-            pauseForIntervention(
-                'INITIATING_USER_APPROVAL_UNSUPPORTED',
-                'The authorization policy asked for approval, but this agent has no Agent Execution Identity, so its runs cannot wait for approval.'
-            );
+        String problem = approvalAnswerProblem(response);
+        if (problem != null) {
+            pauseForIntervention('TOOL_AUTHORIZATION_POLICY_INVALID', problem);
             return false;
         }
-        if (
-            policyRequiresApproval &&
-            (String.isBlank(response.reason) || (response.timeoutSeconds != null && (response.timeoutSeconds < 60 || response.timeoutSeconds > 604800)))
-        ) {
-            pauseForIntervention(
-                'TOOL_AUTHORIZATION_POLICY_INVALID',
-                'Approval authorization result requires a reason and a timeout from 60 to 604,800 seconds.'
-            );
-            return false;
-        }
-        AgentApprovalService.Request approval;
-        try {
-            approval = policyRequiresApproval
-                ? AgentApprovalService.request(run, tool, response.reason, response.timeoutSeconds, response.approverId)
-                : AgentApprovalService.request(run, tool, 'Tool configuration requires approval.', null, null);
-        } catch (AgentApprovalService.AssignmentException unassigned) {
-            pauseForIntervention('APPROVAL_ASSIGNMENT_UNRESOLVED', unassigned.getMessage());
-            return false;
-        } catch (Exception assignmentFailure) {
-            pauseForIntervention('APPROVAL_ASSIGNMENT_UNRESOLVED', 'The approver could not be resolved for this tool call.');
-            return false;
-        }
-        // A failed wait transition is a worker failure: the finalizer recovers the leased command.
-        AgentKernel.waitForApproval(run.Id, command.Id, expectedRevision, operationKey, leaseToken, approval);
+        waitForApprover(run, command, tool, (AgentKernelModels.ToolApprovalResponse) response);
         return false;
     }
 
-    private static AgentKernelModels.ToolAuthorizationResponse defaultPolicy(AgentTool__c tool) {
-        AgentKernelModels.ToolAuthorizationResponse response = new AgentKernelModels.ToolAuthorizationResponse();
-        response.decision = AgentKernelModels.ToolAuthorizationDecision.Allow;
-        response.reason = 'No contextual authorization policy is configured.';
+    /** The policy's answer, or null after pausing the run because the policy failed or broke its contract. */
+    private AgentKernelModels.ToolAuthorizationResponse evaluatePolicy(AgentRun__c run, AgentCommand__c command, AgentTool__c tool) {
+        AgentKernelModels.ToolAuthorizationResponse response;
+        try {
+            AgentKernelModels.ToolAuthorizationRequest request = new AgentKernelModels.ToolAuthorizationRequest();
+            request.runId = run.Id;
+            request.commandId = command.Id;
+            request.definitionId = run.AgentDefinition__c;
+            request.toolName = command.ToolName__c;
+            request.toolType = tool.ToolType__c;
+            request.input = command.Input__c;
+            request.operationKey = command.OperationKey__c;
+            request.attemptNumber = completedAttemptCount;
+            request.hasExternalEffects = AgentToolTypeService.admittedEffects(command) != AgentToolTypeService.EFFECTS_IN_ORG;
+            request.initiatingActorId = run.InitiatingUser__c;
+            request.attendedById = run.AttendedBy__c;
+            request.resolvedPrincipalId = run.ResolvedPrincipalUser__c;
+            request.executionIdentityId = run.ExecutionIdentity__c;
+            Exception policyFailure;
+            ExtensionExecutionGuard.Boundary boundary = ExtensionExecutionGuard.open();
+            try {
+                response = AgentExtensionInvoker.evaluatePolicy(definition, request);
+            } catch (Exception caughtFailure) {
+                policyFailure = caughtFailure;
+            }
+            ExtensionExecutionGuard.Result isolation = ExtensionExecutionGuard.close(boundary);
+            if (isolation.budgetExceeded) {
+                pauseForIntervention('TOOL_AUTHORIZATION_POLICY_BUDGET_EXCEEDED', 'Tool authorization policy exceeded its governor budget.');
+                return null;
+            }
+            if (isolation.performedDml || isolation.performedCallout || isolation.performedProhibitedAsync() || policyFailure instanceof CalloutException) {
+                pauseForIntervention('TOOL_AUTHORIZATION_POLICY_INVALID', 'Tool authorization policy evaluation must remain query-only.');
+                return null;
+            }
+            if (policyFailure != null) {
+                throw policyFailure;
+            }
+        } catch (Exception policyFailure) {
+            pauseForIntervention('TOOL_AUTHORIZATION_POLICY_ERROR', 'Tool authorization policy evaluation failed closed.');
+            return null;
+        }
+        if (response == null || response.decision == null) {
+            pauseForIntervention('TOOL_AUTHORIZATION_POLICY_INVALID', 'Tool authorization policy returned no decision.');
+            return null;
+        }
         return response;
+    }
+
+    /** Why a Require Approval answer cannot be assigned, or null when it can. */
+    private static String approvalAnswerProblem(AgentKernelModels.ToolAuthorizationResponse response) {
+        if (String.isBlank(response.reason)) {
+            return 'The authorization policy asked for approval without a reason. Pass the reason the approver should see to requireApproval.';
+        }
+        AgentKernelModels.ToolApprovalResponse held = response instanceof AgentKernelModels.ToolApprovalResponse
+            ? (AgentKernelModels.ToolApprovalResponse) response
+            : null;
+        if (held == null || (String.isBlank(held.approverQueue) && held.approverUserId == null)) {
+            return 'The authorization policy asked for approval without naming an approver. Add byQueue or byUser to requireApproval.';
+        }
+        if (held.approverUserId != null && held.approverUserId.getSObjectType() != User.SObjectType) {
+            return 'The authorization policy\'s byUser Id is not a user. Use byQueue with the queue\'s API name for a queue.';
+        }
+        if (held.timeoutMinutes != null && (held.timeoutMinutes < 1 || held.timeoutMinutes > AgentApprovalService.MAX_TIMEOUT_MINUTES)) {
+            return 'The authorization policy\'s timeout must be from 1 to ' + AgentApprovalService.MAX_TIMEOUT_MINUTES + ' minutes (7 days).';
+        }
+        return null;
+    }
+
+    /** Opens the approval wait, or pauses the run when nobody can be asked. */
+    private void waitForApprover(AgentRun__c run, AgentCommand__c command, AgentTool__c tool, AgentKernelModels.ToolApprovalResponse held) {
+        if (!ExecutionIdentityService.usesIdentity(run)) {
+            pauseForIntervention(
+                'INITIATING_USER_APPROVAL_UNSUPPORTED',
+                (held != null ? 'The authorization policy asked for approval' : 'Tool ' + tool.DeveloperName__c + ' requires approval') +
+                ', but this agent has no Agent Execution Identity, so its runs cannot wait for approval.'
+            );
+            return;
+        }
+        AgentApprovalService.Request approval;
+        try {
+            approval = AgentApprovalService.request(run, tool, held);
+        } catch (AgentApprovalService.AssignmentException unassigned) {
+            pauseForIntervention('APPROVAL_ASSIGNMENT_UNRESOLVED', unassigned.getMessage());
+            return;
+        } catch (Exception assignmentFailure) {
+            pauseForIntervention('APPROVAL_ASSIGNMENT_UNRESOLVED', 'The approver could not be resolved for this tool call.');
+            return;
+        }
+        // A failed wait transition is a worker failure: the finalizer recovers the leased command.
+        AgentKernel.waitForApproval(run.Id, command.Id, expectedRevision, operationKey, leaseToken, approval);
     }
 
     private void waitForExternalInput(AgentKernelModels.ToolResponse response, AgentTool__c tool) {

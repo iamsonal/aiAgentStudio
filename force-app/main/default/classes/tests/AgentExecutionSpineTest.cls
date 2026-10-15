@@ -93,22 +93,29 @@ private class AgentExecutionSpineTest {
 
     @IsTest
     static void onlyReviewableCallsAreAskedWhyAndTheReasonIsReplayed() {
-        AgentTool__c readOnly = new AgentTool__c(ToolType__c = AgentToolTypeTestFixtures.IN_ORG, RequiresApproval__c = false);
-        AgentTool__c approved = new AgentTool__c(ToolType__c = AgentToolTypeTestFixtures.IN_ORG, RequiresApproval__c = true);
-        AgentTool__c external = new AgentTool__c(ToolType__c = AgentToolTypeTestFixtures.EXTERNAL, RequiresApproval__c = false);
-        System.assertEquals(false, ModelRequestAssembler.asksRationale(readOnly, false), 'A read-only call is not asked why.');
-        System.assertEquals(true, ModelRequestAssembler.asksRationale(readOnly, true), 'A policy may ask for approval of any call.');
-        System.assertEquals(true, ModelRequestAssembler.asksRationale(approved, false));
-        System.assertEquals(true, ModelRequestAssembler.asksRationale(external, false), 'An operator may reconcile an external effect.');
-        AgentTool__c readOnlyExternal = new AgentTool__c(ToolType__c = AgentToolTypeTestFixtures.READ_ONLY_EXTERNAL, RequiresApproval__c = false);
-        System.assertEquals(false, ModelRequestAssembler.asksRationale(readOnlyExternal, false), 'A read-only outside lookup is not asked why.');
-        System.assertEquals(true, ModelRequestAssembler.asksRationale(readOnlyExternal, true), 'A policy may still ask for approval.');
+        AgentTool__c readOnly = new AgentTool__c(ToolType__c = AgentToolTypeTestFixtures.IN_ORG);
+        AgentTool__c approved = new AgentTool__c(ToolType__c = AgentToolTypeTestFixtures.IN_ORG, ApprovalMode__c = AgentKernelModels.APPROVAL_ALWAYS_REQUIRED);
+        AgentTool__c external = new AgentTool__c(ToolType__c = AgentToolTypeTestFixtures.EXTERNAL);
+        String approver = ModelRequestAssembler.APPROVER_RATIONALE;
+        String reviewer = ModelRequestAssembler.REVIEWER_RATIONALE;
+        System.assertEquals(null, ModelRequestAssembler.rationalePrompt(readOnly), 'A read-only call is not asked why.');
+        System.assertEquals(approver, ModelRequestAssembler.rationalePrompt(approved));
+        System.assertEquals(reviewer, ModelRequestAssembler.rationalePrompt(external), 'An operator may reconcile an external effect.');
+        external.ApprovalMode__c = AgentKernelModels.APPROVAL_DECIDED_BY_POLICY;
+        System.assertEquals(approver, ModelRequestAssembler.rationalePrompt(external), 'An approver may read a call the policy holds.');
+        AgentTool__c readOnlyExternal = new AgentTool__c(ToolType__c = AgentToolTypeTestFixtures.READ_ONLY_EXTERNAL);
+        System.assertEquals(null, ModelRequestAssembler.rationalePrompt(readOnlyExternal), 'A read-only outside lookup is not asked why.');
+        readOnlyExternal.ApprovalMode__c = AgentKernelModels.APPROVAL_DECIDED_BY_POLICY;
+        System.assertEquals(approver, ModelRequestAssembler.rationalePrompt(readOnlyExternal), 'A policy may still ask for approval.');
         String schema = '{"type":"object","properties":{"value":{"type":"string"}},"additionalProperties":false}';
         System.assert(
-            ModelRequestAssembler.withRationale(schema, true).contains(ModelRequestAssembler.APPROVER_RATIONALE),
-            'An approval tool asks for what changes and what the approver should check.'
+            ModelRequestAssembler.withRationale(schema, approver).contains(approver),
+            'An approval call asks what it will do and which conditions were not confirmed.'
         );
-        System.assert(ModelRequestAssembler.withRationale(schema, false).contains(ModelRequestAssembler.REVIEWER_RATIONALE));
+        System.assert(
+            approver.contains('If this call only reads'),
+            'A policy agent asks reads for the approver text too, so the text keeps a read to one sentence.'
+        );
 
         resetDoubles();
         KernelTestModelProvider.mode = 'toolThenFinal';
@@ -695,7 +702,6 @@ private class AgentExecutionSpineTest {
             Description__c = 'Looks up an order.',
             ToolType__c = AgentToolTypeTestFixtures.AUTHORING,
             ImplementationConfiguration__c = configuration,
-            RequiresApproval__c = false,
             IsActive__c = true,
             SortOrder__c = 1
         );

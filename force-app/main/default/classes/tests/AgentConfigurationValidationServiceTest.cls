@@ -96,6 +96,104 @@ private class AgentConfigurationValidationServiceTest {
     }
 
     @IsTest
+    static void aPolicyWithNoToolToDecideIsFlagged() {
+        AgentDefinition__c definition = AgentKernelTestFactory.createDefinition();
+        AgentKernelTestFactory.useDelegatedPrincipal(definition);
+        AgentTool__c tool = AgentKernelTestFactory.createTool(definition.Id, 'refund_tool', '{"type":"object"}');
+        definition.ToolAuthorizationPolicyClass__c = 'KernelTestToolPolicy';
+        update definition;
+
+        AgentConfigurationValidationService.ValidationReport report = validate(definition.Id);
+        System.assertEquals(true, report.isValid, 'The tools still run; the policy is only never asked.');
+        System.assert(codes(report).contains('POLICY_NEVER_RUNS'));
+
+        tool.ApprovalMode__c = AgentKernelModels.APPROVAL_DECIDED_BY_POLICY;
+        tool.ApprovalExpiryAction__c = AgentKernelModels.APPROVAL_EXPIRY_DENY;
+        AgentKernelTestFactory.updateRecord(tool);
+        System.assertEquals(false, codes(validate(definition.Id)).contains('POLICY_NEVER_RUNS'), 'The policy decides the tool now.');
+    }
+
+    @IsTest
+    static void aPolicyDecidedToolNeedsTheAgentsPolicy() {
+        AgentDefinition__c definition = AgentKernelTestFactory.createDefinition();
+        AgentKernelTestFactory.useDelegatedPrincipal(definition);
+        AgentTool__c tool = AgentKernelTestFactory.createTool(definition.Id, 'refund_tool', '{"type":"object"}');
+        AgentTool__c decided = new AgentTool__c(
+            Id = tool.Id,
+            ApprovalMode__c = AgentKernelModels.APPROVAL_DECIDED_BY_POLICY,
+            ApprovalExpiryAction__c = AgentKernelModels.APPROVAL_EXPIRY_DENY
+        );
+
+        Database.SaveResult refused = Database.update(decided, false);
+        System.assertEquals(false, refused.isSuccess(), 'Nothing would decide the tool without a policy.');
+        System.assertEquals(AgentApprovalService.POLICY_REQUIRED_MESSAGE, refused.getErrors()[0].getMessage());
+
+        definition.ToolAuthorizationPolicyClass__c = 'KernelTestToolPolicy';
+        update definition;
+        AgentKernelTestFactory.updateRecord(decided);
+        definition.ToolAuthorizationPolicyClass__c = null;
+        Database.SaveResult cleared = Database.update(definition, false);
+        System.assertEquals(false, cleared.isSuccess(), 'Clearing the policy would leave the tool undecided.');
+        System.assert(cleared.getErrors()[0].getMessage().contains('refund_tool'), cleared.getErrors()[0].getMessage());
+    }
+
+    @IsTest
+    static void approvalSettingsMatchTheApprovalChoice() {
+        AgentDefinition__c definition = AgentKernelTestFactory.createDefinition();
+        AgentKernelTestFactory.useDelegatedPrincipal(definition);
+        definition.ToolAuthorizationPolicyClass__c = 'KernelTestToolPolicy';
+        update definition;
+        AgentTool__c tool = AgentKernelTestFactory.createTool(definition.Id, 'refund_tool', '{"type":"object"}');
+        Id approverId = AgentKernelTestFactory.approverUser();
+
+        assertRefused(
+            new AgentTool__c(Id = tool.Id, ApprovalExpiryAction__c = AgentKernelModels.APPROVAL_EXPIRY_DENY),
+            'Approval is Not Required, so clear the approver, Approval Timeout, and When Approval Expires.'
+        );
+        assertRefused(
+            new AgentTool__c(
+                Id = tool.Id,
+                ApprovalMode__c = AgentKernelModels.APPROVAL_ALWAYS_REQUIRED,
+                ApproverType__c = AgentKernelModels.APPROVER_USER,
+                ApproverUser__c = approverId
+            ),
+            'Choose When Approval Expires for a tool whose calls can wait for approval.'
+        );
+        assertRefused(
+            new AgentTool__c(
+                Id = tool.Id,
+                ApprovalMode__c = AgentKernelModels.APPROVAL_ALWAYS_REQUIRED,
+                ApprovalExpiryAction__c = AgentKernelModels.APPROVAL_EXPIRY_DENY
+            ),
+            'Choose an Approver Type for a tool whose Approval is Always Required.'
+        );
+        assertRefused(
+            new AgentTool__c(
+                Id = tool.Id,
+                ApprovalMode__c = AgentKernelModels.APPROVAL_DECIDED_BY_POLICY,
+                ApprovalExpiryAction__c = AgentKernelModels.APPROVAL_EXPIRY_DENY,
+                ApproverType__c = AgentKernelModels.APPROVER_USER,
+                ApproverUser__c = approverId
+            ),
+            'Approval is Decided by Policy, so the policy names the approver. Clear Approver Type, Approver User, and Approver Queue.'
+        );
+        AgentKernelTestFactory.updateRecord(
+            new AgentTool__c(
+                Id = tool.Id,
+                ApprovalMode__c = AgentKernelModels.APPROVAL_DECIDED_BY_POLICY,
+                ApprovalExpiryAction__c = AgentKernelModels.APPROVAL_EXPIRY_PAUSE,
+                ApprovalTimeoutMinutes__c = 60
+            )
+        );
+    }
+
+    private static void assertRefused(AgentTool__c tool, String message) {
+        Database.SaveResult result = Database.update(tool, false);
+        System.assertEquals(false, result.isSuccess(), message);
+        System.assertEquals(message, result.getErrors()[0].getMessage());
+    }
+
+    @IsTest
     static void initiatingUserDoesNotRequireServiceUser() {
         AgentDefinition__c definition = AgentKernelTestFactory.createDefinition();
 
@@ -111,7 +209,12 @@ private class AgentConfigurationValidationServiceTest {
         AgentTool__c tool = AgentKernelTestFactory.createTool(definition.Id, 'write_case', '{"type":"object"}');
 
         Database.SaveResult result = Database.update(
-            new AgentTool__c(Id = tool.Id, RequiresApproval__c = true, ApproverType__c = AgentKernelModels.APPROVER_DELIVERY_CHANNEL),
+            new AgentTool__c(
+                Id = tool.Id,
+                ApprovalMode__c = AgentKernelModels.APPROVAL_ALWAYS_REQUIRED,
+                ApproverType__c = AgentKernelModels.APPROVER_DELIVERY_CHANNEL,
+                ApprovalExpiryAction__c = AgentKernelModels.APPROVAL_EXPIRY_DENY
+            ),
             false
         );
 
@@ -124,8 +227,9 @@ private class AgentConfigurationValidationServiceTest {
         AgentDefinition__c definition = AgentKernelTestFactory.createDefinition();
         AgentKernelTestFactory.useDelegatedPrincipal(definition);
         AgentTool__c tool = AgentKernelTestFactory.createTool(definition.Id, 'write_case', '{"type":"object"}');
-        tool.RequiresApproval__c = true;
+        tool.ApprovalMode__c = AgentKernelModels.APPROVAL_ALWAYS_REQUIRED;
         tool.ApproverType__c = AgentKernelModels.APPROVER_DELIVERY_CHANNEL;
+        tool.ApprovalExpiryAction__c = AgentKernelModels.APPROVAL_EXPIRY_DENY;
         AgentKernelTestFactory.updateRecord(tool);
         definition.ExecutionIdentity__c = null;
 
@@ -365,7 +469,6 @@ private class AgentConfigurationValidationServiceTest {
                     Description__c = 'Tool-count validation fixture.',
                     ToolType__c = AgentToolTypeTestFixtures.IN_ORG,
                     InputSchema__c = '{"type":"object","properties":{},"additionalProperties":false}',
-                    RequiresApproval__c = false,
                     IsActive__c = true,
                     SortOrder__c = index
                 )

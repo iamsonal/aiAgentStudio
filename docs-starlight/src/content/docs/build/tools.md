@@ -29,7 +29,7 @@ Developers can add more tool types in Apex. See [Extend Pluto](/extend/).
 | Input Schema | The inputs the model may send, as JSON Schema. Leave it blank for a tool type that builds its inputs: every Core tool type, and Search Knowledge, Run Report, and the channel tools. Fill it in for Call API, Read from API, the MCP tools, and a custom type that does not build its inputs. |
 | Sort Order | Lower numbers are listed to the model first. |
 | Is Active | Unchecked by default. Check it to give the tool to the agent. |
-| Always Require Approval and the approval fields | See [Require approval](/approvals/require/). |
+| Approval and the approval fields | See [Require approval](/approvals/require/). |
 | Allowed Sensitive Data Categories | Leave empty unless the tool needs real values, such as a real email address to send to. See [Sensitive data](/data/sensitive/). |
 
 In Pluto Console, the tool editor shows a form for the settings, so most tools need no JSON.

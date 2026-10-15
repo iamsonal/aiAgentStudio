@@ -103,6 +103,11 @@ global inherited sharing class AgentKernelModels {
     public static final String APPROVER_REQUESTER_MANAGER = 'Requester\'s Manager';
     public static final String APPROVER_DELIVERY_CHANNEL = 'Delivery Channel';
 
+    /** AgentTool__c.ApprovalMode__c. Blank means Not Required. */
+    public static final String APPROVAL_NOT_REQUIRED = 'Not Required';
+    public static final String APPROVAL_ALWAYS_REQUIRED = 'Always Required';
+    public static final String APPROVAL_DECIDED_BY_POLICY = 'Decided by Policy';
+
     public static final String APPROVAL_EXPIRY_DENY = 'Deny and Continue';
     public static final String APPROVAL_EXPIRY_PAUSE = 'Pause for Operator';
 
@@ -476,11 +481,20 @@ global inherited sharing class AgentKernelModels {
         }
     }
 
+    /**
+     * One call of a Decided by Policy tool for a policy to decide. Build the
+     * answer with allow(), deny(reason), or requireApproval(reason) and an
+     * approver, and read inputs with inputValue(name) or decimalInput(name).
+     */
     global class ToolAuthorizationRequest {
         global Id runId { get; set; }
         global Id commandId { get; set; }
         global Id definitionId { get; set; }
+        /** The tool's API name on this agent. An admin can change it; match on toolType to find a kind of tool. */
         global String toolName { get; set; }
+        /** The API name of the tool's Agent Tool Type, such as UpdateRecord. */
+        global String toolType { get; set; }
+        /** The call's arguments as JSON, already checked against the tool's Input Schema. */
         global String input { get; set; }
         global String operationKey { get; set; }
         global Integer attemptNumber { get; set; }
@@ -492,14 +506,86 @@ global inherited sharing class AgentKernelModels {
         global Id resolvedPrincipalId { get; set; }
         /** The run's Agent Execution Identity; null when the run acts as the user who started it. */
         global Id executionIdentityId { get; set; }
+        private transient Map<String, Object> arguments;
+
+        /** One top-level input, or null when the call did not send it. */
+        global Object inputValue(String name) {
+            if (arguments == null) {
+                Object parsed;
+                try {
+                    parsed = String.isBlank(input) ? null : JSON.deserializeUntyped(input);
+                } catch (JSONException malformed) {
+                    parsed = null;
+                }
+                arguments = parsed instanceof Map<String, Object> ? (Map<String, Object>) parsed : new Map<String, Object>();
+            }
+            return arguments.get(name);
+        }
+
+        /** One top-level number input, or null when it is missing or not a number. */
+        global Decimal decimalInput(String name) {
+            Object value = inputValue(name);
+            if (value instanceof Decimal) {
+                return (Decimal) value;
+            }
+            return value instanceof Integer || value instanceof Long || value instanceof Double ? Decimal.valueOf(String.valueOf(value)) : null;
+        }
+
+        global ToolAuthorizationResponse allow() {
+            return new ToolAuthorizationResponse(ToolAuthorizationDecision.Allow, null);
+        }
+
+        /** The model receives TOOL_AUTHORIZATION_DENIED with this reason, so write it for the model. */
+        global ToolAuthorizationResponse deny(String reason) {
+            return new ToolAuthorizationResponse(ToolAuthorizationDecision.Deny, reason);
+        }
+
+        /** The approver sees this reason. Name the approver with byQueue or byUser; Core pauses the run if neither is named. */
+        global ToolApprovalResponse requireApproval(String reason) {
+            return new ToolApprovalResponse(reason);
+        }
     }
 
-    global class ToolAuthorizationResponse {
-        global ToolAuthorizationDecision decision { get; set; }
-        global String reason { get; set; }
-        global Integer timeoutSeconds { get; set; }
-        /** Optional User or Queue that decides a RequireApproval call instead of the tool's configured approver. */
-        global Id approverId { get; set; }
+    global virtual class ToolAuthorizationResponse {
+        global ToolAuthorizationDecision decision { get; private set; }
+        global String reason { get; private set; }
+
+        public ToolAuthorizationResponse(ToolAuthorizationDecision decision, String reason) {
+            this.decision = decision;
+            this.reason = reason;
+        }
+    }
+
+    /** A Require Approval answer: who approves the call, and optionally a deadline that replaces the tool's Approval Timeout. */
+    global class ToolApprovalResponse extends ToolAuthorizationResponse {
+        /** Whole minutes, 1 through 10,080 (7 days). Blank uses the tool's Approval Timeout. */
+        global Integer timeoutMinutes { get; private set; }
+        /** The API name of a queue that supports Agent Approval. Core pauses the run if it is missing. */
+        global String approverQueue { get; private set; }
+        global Id approverUserId { get; private set; }
+
+        public ToolApprovalResponse(String reason) {
+            super(ToolAuthorizationDecision.RequireApproval, reason);
+        }
+
+        /** Replaces any user named with byUser. */
+        global ToolApprovalResponse byQueue(String queueApiName) {
+            approverQueue = queueApiName;
+            approverUserId = null;
+            return this;
+        }
+
+        /** Replaces any queue named with byQueue. */
+        global ToolApprovalResponse byUser(Id userId) {
+            approverUserId = userId;
+            approverQueue = null;
+            return this;
+        }
+
+        global ToolApprovalResponse withTimeoutMinutes(Integer minutes) {
+            timeoutMinutes = minutes;
+            return this;
+        }
     }
 
     /** Persistence-neutral readable projection of one agent run. */
@@ -753,6 +839,7 @@ global inherited sharing class AgentKernelModels {
         global String developerName { get; set; }
         global String description { get; set; }
         global String inputSchema { get; set; }
+        /** True when every call waits for approval: the tool's Approval is Always Required. */
         global Boolean requiresApproval { get; set; }
 
         global ToolDefinition() {

@@ -14,4 +14,5 @@
 trigger AgentDefinitionValidationTrigger on AgentDefinition__c(before insert, before update) {
     AgentDefinitionIdentityRules.validateDefinitions(Trigger.new, Trigger.isUpdate ? Trigger.oldMap : null);
     AgentModelService.validateDefinitions(Trigger.new, Trigger.isUpdate ? Trigger.oldMap : null);
+    AgentApprovalService.validateDefinitions(Trigger.new, Trigger.isUpdate ? Trigger.oldMap : null);
 }

@@ -21,8 +21,8 @@
  * no one else can approve it and scheduled recovery cannot continue it.
  */
 public inherited sharing class AgentDefinitionIdentityRules {
-    public static final String APPROVAL_UNSUPPORTED_MESSAGE = 'This agent has no Agent Execution Identity, so it runs as whoever starts it and cannot have tools that need approval: an approved call could not continue in that user\'s job chain. Set an Agent Execution Identity on the agent, or clear Always Require Approval and Approver Type.';
-    public static final String CLEAR_IDENTITY_REFUSED_MESSAGE = 'This agent has tools that need approval, so it needs an Agent Execution Identity. Keep the identity, or clear Always Require Approval and Approver Type on those tools first.';
+    public static final String APPROVAL_UNSUPPORTED_MESSAGE = 'This agent has no Agent Execution Identity, so it runs as whoever starts it and cannot have tools that need approval: an approved call could not continue in that user\'s job chain. Set an Agent Execution Identity on the agent, or change the tool\'s Approval from Always Required.';
+    public static final String CLEAR_IDENTITY_REFUSED_MESSAGE = 'This agent has tools that need approval, so it needs an Agent Execution Identity. Keep the identity, or change the Approval of those tools from Always Required first.';
 
     public static String error(AgentDefinition__c definition) {
         return chainDepthError(definition);
@@ -102,7 +102,7 @@ public inherited sharing class AgentDefinitionIdentityRules {
     }
 
     private static Boolean usesApproval(AgentTool__c record) {
-        return record.RequiresApproval__c == true || !String.isBlank(record.ApproverType__c);
+        return AgentApprovalService.mode(record) == AgentKernelModels.APPROVAL_ALWAYS_REQUIRED;
     }
 
     private static Set<Id> definitionsWithApprovalTools(Set<Id> definitionIds) {
@@ -113,7 +113,7 @@ public inherited sharing class AgentDefinitionIdentityRules {
         for (AgentTool__c tool : [
             SELECT AgentDefinition__c
             FROM AgentTool__c
-            WHERE AgentDefinition__c IN :definitionIds AND IsActive__c = TRUE AND (RequiresApproval__c = TRUE OR ApproverType__c != NULL)
+            WHERE AgentDefinition__c IN :definitionIds AND IsActive__c = TRUE AND ApprovalMode__c = :AgentKernelModels.APPROVAL_ALWAYS_REQUIRED
             WITH SYSTEM_MODE
         ]) {
             result.add(tool.AgentDefinition__c);

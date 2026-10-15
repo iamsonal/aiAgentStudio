@@ -31,12 +31,12 @@ public with sharing class ToolAuthoringController {
         'Description__c',
         'IsActive__c',
         'SortOrder__c',
-        'RequiresApproval__c',
+        'ApprovalMode__c',
         'ApproverType__c',
         'ApproverUser__c',
         'ApproverQueue__c',
         'ApprovalRoute__c',
-        'ApprovalTimeoutHours__c',
+        'ApprovalTimeoutMinutes__c',
         'ApprovalExpiryAction__c',
         'AllowedSensitiveDataCategories__c'
     };
@@ -327,7 +327,7 @@ public with sharing class ToolAuthoringController {
             } else if (EDITABLE_TOOL_FIELDS.contains(fieldName)) {
                 tool.put(fieldName, supplied.get(fieldName));
             } else {
-                throw handled('The tool draft contains a field that cannot be edited here.');
+                throw handled('The tool draft contains a field that cannot be edited here: ' + fieldName + '. Refresh the page and try again.');
             }
         }
         String type = blankToNull(toolType);

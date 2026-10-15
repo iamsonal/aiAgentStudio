@@ -44,7 +44,7 @@ private class CriticalBehaviorGapTest {
     }
 
     @IsTest
-    static void onlyRequiresApprovalMakesAToolWait() {
+    static void onlyTheApprovalSettingMakesAToolWait() {
         resetDoubles();
         ToolFixture unattended = leasedTool('unattended_write', true, false, '{}');
         executeTool(unattended);
@@ -56,7 +56,8 @@ private class CriticalBehaviorGapTest {
         AgentKernelTestFactory.useDelegatedPrincipal(definition);
         AgentTool__c gated = AgentKernelTestFactory.createTool(definition.Id, 'gated_read', '{"type":"object"}');
         Id approverId = AgentKernelTestFactory.approverUser();
-        gated.RequiresApproval__c = true;
+        gated.ApprovalMode__c = AgentKernelModels.APPROVAL_ALWAYS_REQUIRED;
+        gated.ApprovalExpiryAction__c = AgentKernelModels.APPROVAL_EXPIRY_DENY;
         gated.ApproverType__c = AgentKernelModels.APPROVER_USER;
         gated.ApproverUser__c = approverId;
         AgentKernelTestFactory.updateRecord(gated);
@@ -312,7 +313,7 @@ private class CriticalBehaviorGapTest {
         AgentDefinition__c definition = AgentKernelTestFactory.createDefinition();
         definition.ToolAuthorizationPolicyClass__c = 'KernelTestToolPolicy';
         update definition;
-        AgentTool__c tool = AgentKernelTestFactory.createTool(definition.Id, 'policy_failure', '{"type":"object"}');
+        AgentTool__c tool = AgentKernelTestFactory.createPolicyTool(definition.Id, 'policy_failure');
         AgentKernelModels.StartResult started = AgentKernelTestFactory.startRunWithoutDispatch(definition);
         ToolFixture fixture = leaseExistingTool(started, tool, false, '{}');
         KernelTestToolPolicy.throwUnexpected = true;

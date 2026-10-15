@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ApprovalMode__c</fullName>
+    <description>Whether a call of this tool waits for a person. Not Required runs every call, and the agent&apos;s authorization policy is not asked. Always Required waits for the Approver Type on every call; the policy is not asked. Decided by Policy asks the agent&apos;s authorization policy about each call: it runs the call, denies it, or holds it for an approver the policy names. Blank means Not Required.</description>
+    <inlineHelpText>Not Required: every call runs. Always Required: every call waits for the approver you choose below. Decided by Policy: the agent&apos;s Tool Authorization Policy Class decides each call, and names the approver when a call must wait. Only agents with an execution identity can wait for approval.</inlineHelpText>
+    <label>Approval Mode</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Not Required</fullName>
+                <default>true</default>
+                <label>Not Required</label>
+            </value>
+            <value>
+                <fullName>Always Required</fullName>
+                <default>false</default>
+                <label>Always Required</label>
+            </value>
+            <value>
+                <fullName>Decided by Policy</fullName>
+                <default>false</default>
+                <label>Decided by Policy</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

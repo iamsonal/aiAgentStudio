@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ApproverType__c</fullName>
-    <description>Who decides this tool&apos;s approvals. Required when Always Require Approval is checked; also used when the authorization policy asks for approval without naming an approver.</description>
-    <inlineHelpText>Who approves this tool&apos;s calls: a chosen User or Queue, the Anchor Record Owner, or the starting user&apos;s manager. Required when Always Require Approval is checked. Also used when an authorization policy asks for approval without naming an approver. Approval Process requires an installed integration to pick reviewers and pass their decision to Core. Without one, the approval waits until it expires.</inlineHelpText>
+    <description>Who decides this tool&apos;s approvals when Approval is Always Required. Required then, and blank otherwise: with Decided by Policy, the policy names the approver for each call it holds.</description>
+    <inlineHelpText>Who approves every call when Approval is Always Required: a chosen User or Queue, the Anchor Record Owner, or the starting user&apos;s manager. Leave blank for Not Required and Decided by Policy. Approval Process requires an installed integration to pick reviewers and pass their decision to Core. Without one, the approval waits until it expires.</inlineHelpText>
     <label>Approver Type</label>
     <required>false</required>
     <trackTrending>false</trackTrending>

@@ -1,0 +1,7 @@
+# Runs the push check from this checkout. On a branch without it, such as
+# public-release, runs the copy committed on main. Clones without it skip the check.
+if [ -x scripts/check-public-push.sh ]; then
+    exec scripts/check-public-push.sh "$@"
+elif git cat-file -e main:scripts/check-public-push.sh 2>/dev/null; then
+    exec bash -c "$(git show main:scripts/check-public-push.sh)" check-public-push "$@"
+fi

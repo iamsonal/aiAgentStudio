@@ -40,6 +40,7 @@ public with sharing class ToolTryController {
         /** The editor builds its form from this. */
         @AuraEnabled
         public String inputSchema { get; set; }
+        /** Calls of this tool can wait for approval in a real run. */
         @AuraEnabled
         public Boolean requiresApproval { get; set; }
         /** The tool acts on the record the agent starts from, so a dry run needs one. */
@@ -84,7 +85,7 @@ public with sharing class ToolTryController {
         AgentTool__c tool = loadTool(toolId);
         TryState state = new TryState();
         state.toolName = tool.DeveloperName__c;
-        state.requiresApproval = tool.RequiresApproval__c == true;
+        state.requiresApproval = AgentApprovalService.mode(tool) != AgentKernelModels.APPROVAL_NOT_REQUIRED;
         state.reason = whyNot(tool);
         state.canTry = state.reason == null;
         // What the model would be sent now: built with the admin's edits, or hand-written.
@@ -235,7 +236,7 @@ public with sharing class ToolTryController {
         }
         try {
             return [
-                SELECT Id, AgentDefinition__c, DeveloperName__c, ToolType__c, ImplementationConfiguration__c, InputSchema__c, RequiresApproval__c
+                SELECT Id, AgentDefinition__c, DeveloperName__c, ToolType__c, ImplementationConfiguration__c, InputSchema__c, ApprovalMode__c
                 FROM AgentTool__c
                 WHERE Id = :toolId
                 WITH USER_MODE

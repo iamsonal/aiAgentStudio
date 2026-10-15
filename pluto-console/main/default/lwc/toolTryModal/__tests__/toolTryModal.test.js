@@ -72,7 +72,7 @@ describe('c-tool-try-modal', () => {
 
         // The dry-run tagline is slotted into the header, which the Jest stub does not render.
         expect($(element, 'lightning-modal-header').label).toBe('Try create_case');
-        expect($(element, '[data-approval-note]').textContent).toContain('skips it');
+        expect($(element, '[data-approval-note]').textContent).toContain('skips approval');
         expect($(element, '.form-section__heading').textContent).toBe('recordData');
         const subject = $(element, '[data-path="recordData.Subject"]');
         expect(subject.label).toBe('Subject');

@@ -94,22 +94,24 @@ describe('c-pluto-tool-detail', () => {
 
         const form = element.shadowRoot.querySelector('c-pluto-record-layout');
         expect(form.hiddenFields).toEqual(['ToolType__c', 'ImplementationType__c', 'ImplementationConfiguration__c', 'InputSchema__c']);
-        expect(form.additionalFields).toEqual([{ fieldApiName: 'ApprovalRoute__c', before: 'ApprovalTimeoutHours__c' }]);
+        expect(form.additionalFields).toEqual([{ fieldApiName: 'ApprovalRoute__c', before: 'ApprovalTimeoutMinutes__c' }]);
         expect(form.fieldDependencies).toEqual([
-            { controllingField: 'RequiresApproval__c', controllingValue: true, requiredFields: ['ApproverType__c'] },
+            { controllingField: 'ApprovalMode__c', controllingValue: 'Always Required', showFields: ['ApproverType__c'], requiredFields: ['ApproverType__c'] },
+            {
+                controllingField: 'ApprovalMode__c',
+                controllingValue: ['Always Required', 'Decided by Policy'],
+                showFields: ['ApprovalTimeoutMinutes__c', 'ApprovalExpiryAction__c'],
+                requiredFields: ['ApprovalExpiryAction__c']
+            },
             { controllingField: 'ApproverType__c', controllingValue: 'User', showFields: ['ApproverUser__c'], requiredFields: ['ApproverUser__c'] },
             { controllingField: 'ApproverType__c', controllingValue: ['Queue', 'Anchor Record Owner'], showFields: ['ApproverQueue__c'] },
             { controllingField: 'ApproverType__c', controllingValue: 'Queue', requiredFields: ['ApproverQueue__c'] },
             {
                 controllingField: 'ApproverType__c',
-                controllingValue: ['User', 'Queue', 'Anchor Record Owner', "Requester's Manager", 'Delivery Channel'],
-                showFields: ['ApprovalTimeoutHours__c', 'ApprovalExpiryAction__c']
-            },
-            {
-                controllingField: 'ApproverType__c',
                 controllingValue: ['User', 'Queue', 'Anchor Record Owner', "Requester's Manager"],
                 showFields: ['ApprovalRoute__c']
-            }
+            },
+            { controllingField: 'ApprovalMode__c', controllingValue: 'Decided by Policy', showFields: ['ApprovalRoute__c'] }
         ]);
 
         form.setFieldValue('ApproverUser__c', '005000000000000AAA');
@@ -153,17 +155,22 @@ describe('c-pluto-tool-detail', () => {
         await Promise.resolve();
         expect(form.fieldOptions.ApproverQueue__c).toEqual([{ label: 'Queues unavailable', value: '' }]);
     });
-    it('keeps the approver when Always Require Approval is cleared, for calls a policy sends for approval', async () => {
+    it('clears the settings each Approval choice does not use', async () => {
         const element = createElement('c-pluto-tool-detail', { is: PlutoToolDetail });
         element.isNew = true;
         document.body.appendChild(element);
         await Promise.resolve();
         const form = element.shadowRoot.querySelector('c-pluto-record-layout');
-        const approvalFields = ['ApproverType__c', 'ApproverQueue__c', 'ApprovalRoute__c', 'ApprovalTimeoutHours__c', 'ApprovalExpiryAction__c'];
-        approvalFields.forEach((field) => form.setFieldValue(field, 'kept'));
-        form.dispatchEvent(new CustomEvent('fieldchange', { detail: { fieldName: 'RequiresApproval__c', value: false } }));
-        approvalFields.forEach((field) => expect(form.getFieldValue(field)).toBe('kept'));
-        expect(form.fieldDependencies.some((dependency) => dependency.hideFields?.includes('ApproverType__c'))).toBe(false);
+        const approverFields = ['ApproverType__c', 'ApproverUser__c', 'ApproverQueue__c'];
+        const waitFields = ['ApprovalTimeoutMinutes__c', 'ApprovalExpiryAction__c', 'ApprovalRoute__c'];
+        [...approverFields, ...waitFields].forEach((field) => form.setFieldValue(field, 'kept'));
+
+        form.dispatchEvent(new CustomEvent('fieldchange', { detail: { fieldName: 'ApprovalMode__c', value: 'Decided by Policy' } }));
+        approverFields.forEach((field) => expect(form.getFieldValue(field)).toBeNull());
+        waitFields.forEach((field) => expect(form.getFieldValue(field)).toBe('kept'));
+
+        form.dispatchEvent(new CustomEvent('fieldchange', { detail: { fieldName: 'ApprovalMode__c', value: 'Not Required' } }));
+        waitFields.forEach((field) => expect(form.getFieldValue(field)).toBeNull());
         expect(form.requiredFields).toContain('DeveloperName__c');
         expect(element.shadowRoot.querySelector('c-tool-authoring-editor').parentElement.getAttribute('slot')).toBe('form-sections-after');
     });

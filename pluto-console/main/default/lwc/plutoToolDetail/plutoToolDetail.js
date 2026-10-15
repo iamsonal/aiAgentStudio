@@ -19,16 +19,26 @@ import getApproverQueueOptions from '@salesforce/apex/PlutoImplementationDiscove
 // The embedded editor owns and shows the implementation type, tool type, settings, and input schema.
 const EDITOR_FIELDS = ['ToolType__c', 'ImplementationType__c', 'ImplementationConfiguration__c', 'InputSchema__c'];
 // Agent HITL adds Approval Route to the tool; it shows only where HITL is installed.
-const PACKAGE_FIELDS = [{ fieldApiName: 'ApprovalRoute__c', before: 'ApprovalTimeoutHours__c' }];
+const PACKAGE_FIELDS = [{ fieldApiName: 'ApprovalRoute__c', before: 'ApprovalTimeoutMinutes__c' }];
 
-const APPROVER_TYPES = ['User', 'Queue', 'Anchor Record Owner', "Requester's Manager", 'Delivery Channel'];
-// Approver Type stays visible without Requires Approval: an authorization policy
-// may still ask for approval, and Core then uses the tool's approver.
+const ALWAYS_REQUIRED = 'Always Required';
+const DECIDED_BY_POLICY = 'Decided by Policy';
+const CAN_WAIT = [ALWAYS_REQUIRED, DECIDED_BY_POLICY];
+const APPROVER_FIELDS = ['ApproverType__c', 'ApproverUser__c', 'ApproverQueue__c'];
+const WAIT_FIELDS = ['ApprovalTimeoutMinutes__c', 'ApprovalExpiryAction__c', 'ApprovalRoute__c'];
+// The tool names its approver only for Always Required; for Decided by Policy the policy names one.
 const FIELD_DEPENDENCIES = [
     {
-        controllingField: 'RequiresApproval__c',
-        controllingValue: true,
+        controllingField: 'ApprovalMode__c',
+        controllingValue: ALWAYS_REQUIRED,
+        showFields: ['ApproverType__c'],
         requiredFields: ['ApproverType__c']
+    },
+    {
+        controllingField: 'ApprovalMode__c',
+        controllingValue: CAN_WAIT,
+        showFields: ['ApprovalTimeoutMinutes__c', 'ApprovalExpiryAction__c'],
+        requiredFields: ['ApprovalExpiryAction__c']
     },
     {
         controllingField: 'ApproverType__c',
@@ -49,12 +59,12 @@ const FIELD_DEPENDENCIES = [
     },
     {
         controllingField: 'ApproverType__c',
-        controllingValue: APPROVER_TYPES,
-        showFields: ['ApprovalTimeoutHours__c', 'ApprovalExpiryAction__c']
+        controllingValue: ['User', 'Queue', 'Anchor Record Owner', "Requester's Manager"],
+        showFields: ['ApprovalRoute__c']
     },
     {
-        controllingField: 'ApproverType__c',
-        controllingValue: ['User', 'Queue', 'Anchor Record Owner', "Requester's Manager"],
+        controllingField: 'ApprovalMode__c',
+        controllingValue: DECIDED_BY_POLICY,
         showFields: ['ApprovalRoute__c']
     }
 ];
@@ -128,26 +138,29 @@ export default class PlutoToolDetail extends LightningElement {
 
     handleFieldChange(event) {
         const form = this.template.querySelector('c-pluto-record-layout');
-        if (event.detail?.fieldName !== 'ApproverType__c') {
-            return;
-        }
-        const selectedType = event.detail.value;
+        const { fieldName, value } = event.detail || {};
         const inactiveFields = [];
-        if (selectedType !== 'User') {
-            inactiveFields.push('ApproverUser__c');
+        if (fieldName === 'ApprovalMode__c') {
+            if (value !== ALWAYS_REQUIRED) {
+                inactiveFields.push(...APPROVER_FIELDS);
+            }
+            if (!CAN_WAIT.includes(value)) {
+                inactiveFields.push(...WAIT_FIELDS);
+            }
+        } else if (fieldName === 'ApproverType__c') {
+            if (value !== 'User') {
+                inactiveFields.push('ApproverUser__c');
+            }
+            if (value !== 'Queue' && value !== 'Anchor Record Owner') {
+                inactiveFields.push('ApproverQueue__c');
+            }
+            if (value === 'Delivery Channel') {
+                inactiveFields.push('ApprovalRoute__c');
+            }
         }
-        if (selectedType !== 'Queue' && selectedType !== 'Anchor Record Owner') {
-            inactiveFields.push('ApproverQueue__c');
-        }
-        if (!selectedType || selectedType === 'Delivery Channel') {
-            inactiveFields.push('ApprovalRoute__c');
-        }
-        if (!selectedType) {
-            inactiveFields.push('ApprovalTimeoutHours__c', 'ApprovalExpiryAction__c');
-        }
-        inactiveFields.forEach((fieldName) => {
-            if (form?.getFieldValue(fieldName)) {
-                form.setFieldValue(fieldName, null);
+        inactiveFields.forEach((inactive) => {
+            if (form?.getFieldValue(inactive)) {
+                form.setFieldValue(inactive, null);
             }
         });
     }
