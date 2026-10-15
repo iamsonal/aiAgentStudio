@@ -451,10 +451,10 @@ private class ReferenceScenarioTest {
             '{"type":"object","properties":{"amount":{"type":"number"}},"required":["amount"],"additionalProperties":false}'
         );
         refund.ToolType__c = AgentToolTypeTestFixtures.EXTERNAL;
-        refund.RequiresApproval__c = true;
+        refund.ApprovalMode__c = AgentKernelModels.APPROVAL_ALWAYS_REQUIRED;
         refund.ApproverType__c = AgentKernelModels.APPROVER_USER;
         refund.ApproverUser__c = fixture.approverId;
-        refund.ApprovalTimeoutHours__c = 24;
+        refund.ApprovalTimeoutMinutes__c = 1440;
         refund.ApprovalExpiryAction__c = AgentKernelModels.APPROVAL_EXPIRY_DENY;
         AgentKernelTestFactory.updateRecord(refund);
         AgentConfigService.clearCacheForTest();

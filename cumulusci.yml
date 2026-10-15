@@ -196,7 +196,7 @@ flows:
                 options:
                     command: sf package version create --package PlutoConsole --code-coverage --installation-key-bypass --wait 90
     # Run with --org qa. Uses the newest package versions, so run build_packages first.
-    packaged_org:
+    qa_org:
         description: Sets up a scratch org like dev_org, but installs Pluto Core, Model Adapters, and Console from their newest unlocked package versions instead of deploying their source.
         steps:
             1:
@@ -254,5 +254,8 @@ flows:
 orgs:
     scratch:
         dev:
+            config_file: orgs/dev.json
+            days: 30
+        qa:
             config_file: orgs/dev.json
             days: 30

@@ -70,14 +70,5 @@ target/
 /.idea/
 
 **/graphql.config.yml
-.agents/
-/.claude/
-/openspec/
 /coverage-reports/
-.cursor/
-/brand/
-/scripts/
-/AGENTS.md
-/DESIGN.md
-/packages/
-unpackagedMetadata/
+.claude/settings.local.json

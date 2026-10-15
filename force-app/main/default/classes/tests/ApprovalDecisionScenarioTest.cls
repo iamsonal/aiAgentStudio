@@ -170,11 +170,12 @@ private class ApprovalDecisionScenarioTest {
         );
         AgentTool__c tool = new AgentTool__c(
             DeveloperName__c = 'refund_tool',
+            ApprovalMode__c = AgentKernelModels.APPROVAL_ALWAYS_REQUIRED,
             ApproverType__c = AgentKernelModels.APPROVER_ANCHOR_OWNER,
             ApproverQueue__c = 'Agent_Approval_Fallback_Queue'
         );
 
-        AgentApprovalService.Request request = AgentApprovalService.request(run, tool, 'Refund above the threshold.', null, null);
+        AgentApprovalService.Request request = AgentApprovalService.request(run, tool, null);
 
         System.assertEquals(AgentKernelModels.APPROVER_ANCHOR_OWNER, request.approverType, 'The owner started the run and still decides it.');
         System.assertEquals(approverId, request.ownerId, 'The fallback queue is only for an owner who cannot decide.');
@@ -203,11 +204,12 @@ private class ApprovalDecisionScenarioTest {
         );
         AgentTool__c tool = new AgentTool__c(
             DeveloperName__c = 'refund_tool',
+            ApprovalMode__c = AgentKernelModels.APPROVAL_ALWAYS_REQUIRED,
             ApproverType__c = AgentKernelModels.APPROVER_ANCHOR_OWNER,
             ApproverQueue__c = 'Agent_Refund_Review_Queue'
         );
 
-        AgentApprovalService.Request request = AgentApprovalService.request(run, tool, 'Refund above the threshold.', null, null);
+        AgentApprovalService.Request request = AgentApprovalService.request(run, tool, null);
 
         System.assertEquals(AgentKernelModels.APPROVER_QUEUE, request.approverType, 'A Case queue cannot hold approvals, so the fallback decides.');
         System.assertEquals(fallback.Id, request.ownerId);
@@ -224,12 +226,110 @@ private class ApprovalDecisionScenarioTest {
         AgentTool__c tool = AgentKernelTestFactory.createTool(definition.Id, 'queued_tool', '{"type":"object"}');
         AgentRun__c run = AgentKernelTestFactory.getRun(AgentKernelTestFactory.startRunWithoutDispatch(definition).runId);
 
+        tool.ApprovalMode__c = AgentKernelModels.APPROVAL_DECIDED_BY_POLICY;
+        AgentKernelModels.ToolApprovalResponse held = policyApproval('Needs review.').byQueue(queue.DeveloperName);
+
         try {
-            AgentApprovalService.request(run, tool, 'Needs review.', null, queue.Id);
+            AgentApprovalService.request(run, tool, held);
             System.assert(false, 'An approval must not wait on a queue nobody can decide.');
         } catch (AgentApprovalService.AssignmentException expected) {
             System.assert(expected.getMessage().contains('no active member'));
         }
+    }
+
+    @IsTest
+    static void aPolicyDecidedToolWaitsForThePolicyApproverAndDeadline() {
+        Id policyApproverId = AgentKernelTestFactory.approverUser();
+        AgentTool__c tool = policyDecidedTool();
+        tool.ApprovalTimeoutMinutes__c = 600;
+
+        AgentApprovalService.Request request = AgentApprovalService.request(
+            attendedRun(),
+            tool,
+            policyApproval('Over 200.').byUser(policyApproverId).withTimeoutMinutes(5)
+        );
+
+        System.assertEquals(policyApproverId, request.ownerId);
+        System.assertEquals(AgentKernelModels.APPROVER_USER, request.approverType);
+        System.assertEquals(AgentApprovalService.REQUIRED_BY_POLICY, request.requiredBy);
+        System.assertEquals('Over 200.', request.reason);
+        System.assert(request.expiresAt <= System.now().addMinutes(5), 'The policy deadline replaces the tool one.');
+        System.assertEquals(AgentKernelModels.APPROVAL_EXPIRY_PAUSE, request.expiryAction, 'The tool decides what happens on expiry.');
+    }
+
+    @IsTest
+    static void aPolicyWithoutADeadlineUsesTheToolTimeout() {
+        AgentTool__c tool = policyDecidedTool();
+        tool.ApprovalTimeoutMinutes__c = 30;
+
+        AgentApprovalService.Request request = AgentApprovalService.request(
+            attendedRun(),
+            tool,
+            policyApproval('Over 200.').byUser(AgentKernelTestFactory.approverUser())
+        );
+
+        System.assert(request.expiresAt > System.now().addMinutes(29) && request.expiresAt <= System.now().addMinutes(30), 'The tool timeout applies.');
+    }
+
+    @IsTest
+    static void anAlwaysRequiredToolWaitsForItsOwnApprover() {
+        Id approverId = AgentKernelTestFactory.approverUser();
+        AgentTool__c tool = new AgentTool__c(
+            DeveloperName__c = 'refund_tool',
+            ApprovalMode__c = AgentKernelModels.APPROVAL_ALWAYS_REQUIRED,
+            ApproverType__c = AgentKernelModels.APPROVER_USER,
+            ApproverUser__c = approverId
+        );
+
+        AgentApprovalService.Request request = AgentApprovalService.request(attendedRun(), tool, null);
+
+        System.assertEquals(approverId, request.ownerId);
+        System.assertEquals(AgentApprovalService.REQUIRED_BY_TOOL, request.requiredBy);
+        System.assertEquals(AgentApprovalService.TOOL_APPROVAL_REASON, request.reason);
+        System.assertEquals(AgentKernelModels.APPROVAL_EXPIRY_DENY, request.expiryAction, 'A blank expiry action denies.');
+        System.assert(request.expiresAt > System.now().addMinutes(1439), 'A blank timeout waits 24 hours.');
+    }
+
+    @IsTest
+    static void aPolicyDecidedToolNeedsTheApproverThePolicyNames() {
+        try {
+            AgentApprovalService.request(attendedRun(), policyDecidedTool(), null);
+            System.assert(false, 'The tool has no approver of its own.');
+        } catch (AgentApprovalService.AssignmentException expected) {
+            System.assert(expected.getMessage().contains('named no approver'), expected.getMessage());
+        }
+    }
+
+    @IsTest
+    static void aPolicyCannotNameAnApproverWithoutHumanDecision() {
+        Id outsiderId = AgentKernelTestFactory.standardUserWith(new List<String>()).Id;
+        try {
+            AgentApprovalService.request(attendedRun(), policyDecidedTool(), policyApproval('Over 200.').byUser(outsiderId));
+            System.assert(false, 'A user without Human Decision must not be assigned.');
+        } catch (AgentApprovalService.AssignmentException expected) {
+            System.assert(expected.getMessage().contains('Human Decision'), expected.getMessage());
+        }
+    }
+
+    private static AgentTool__c policyDecidedTool() {
+        return new AgentTool__c(
+            DeveloperName__c = 'refund_tool',
+            ApprovalMode__c = AgentKernelModels.APPROVAL_DECIDED_BY_POLICY,
+            ApprovalExpiryAction__c = AgentKernelModels.APPROVAL_EXPIRY_PAUSE
+        );
+    }
+
+    private static AgentKernelModels.ToolApprovalResponse policyApproval(String reason) {
+        return new AgentKernelModels.ToolAuthorizationRequest().requireApproval(reason);
+    }
+
+    /** An unsaved run of an agent with an identity, started by the running user. */
+    private static AgentRun__c attendedRun() {
+        return new AgentRun__c(
+            InitiatingUser__c = UserInfo.getUserId(),
+            ExecutionIdentity__c = AgentKernelTestFactory.unsavedIdentityId(),
+            ExpectedPrincipalUser__c = AgentKernelTestFactory.servicePrincipalUser().Id
+        );
     }
 
     private class AcceptedLoopback implements HttpCalloutMock {

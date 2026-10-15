@@ -14,6 +14,7 @@
 /** Binds a human approval to the exact pending input and executable tool configuration. */
 public inherited sharing class ToolApprovalFingerprint {
     public static String compute(AgentCommand__c command, AgentTool__c tool, AgentDefinition__c definition) {
+        String approvalMode = AgentApprovalService.mode(tool);
         List<String> approvedSurface = new List<String>{
             String.valueOf(command.Id),
             command.OperationKey__c,
@@ -22,9 +23,9 @@ public inherited sharing class ToolApprovalFingerprint {
             tool.DeveloperName__c,
             AgentToolTypeService.bindingHash(tool),
             tool.InputSchema__c,
-            String.valueOf(tool.RequiresApproval__c),
+            approvalMode,
             tool.AllowedSensitiveDataCategories__c,
-            definition.ToolAuthorizationPolicyClass__c
+            approvalMode == AgentKernelModels.APPROVAL_DECIDED_BY_POLICY ? definition.ToolAuthorizationPolicyClass__c : null
         };
         return EncodingUtil.convertToHex(Crypto.generateDigest('SHA-256', Blob.valueOf(JSON.serialize(approvedSurface))));
     }

@@ -199,7 +199,10 @@ private class ToolAuthoringControllerTest {
         System.assertEquals('A complete tool draft is required.', refusal(null, 'UpdateRecord', null));
         AgentTool__c sneaky = header(true);
         sneaky.InputSchema__c = HAND_WRITTEN;
-        System.assertEquals('The tool draft contains a field that cannot be edited here.', refusal(sneaky, 'UpdateRecord', null));
+        System.assertEquals(
+            'The tool draft contains a field that cannot be edited here: InputSchema__c. Refresh the page and try again.',
+            refusal(sneaky, 'UpdateRecord', null)
+        );
         System.assertEquals('Choose a Tool Type.', refusal(header(true), ' ', null));
         System.assertEquals('Settings must be a JSON object.', refusal(header(true), 'UpdateRecord', 'not json'));
         System.assertEquals('Settings must be a JSON object.', refusal(header(true), 'UpdateRecord', '["Case"]'));
@@ -240,7 +243,6 @@ private class ToolAuthoringControllerTest {
             AgentDefinition__c = AgentKernelTestFactory.createDefinition().Id,
             DeveloperName__c = 'set_priority',
             Description__c = 'Sets a case priority.',
-            RequiresApproval__c = false,
             IsActive__c = active,
             SortOrder__c = 1
         );

@@ -1141,7 +1141,7 @@ public without sharing class AgentKernel {
             AgentKernelModels.EVENT_RUN_WAITING,
             command.OperationKey__c,
             'Tool approval required.',
-            JSON.serialize(new Map<String, Object>{ 'approvalId' => approval.Id, 'approverType' => request.approverType })
+            JSON.serialize(new Map<String, Object>{ 'approvalId' => approval.Id, 'approverType' => request.approverType, 'requiredBy' => request.requiredBy })
         );
         AgentLifecyclePublisher.publish(run, 'Waiting', eventSequence, command.OperationKey__c);
     }

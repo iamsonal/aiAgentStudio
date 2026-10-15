@@ -22,7 +22,7 @@ Core checks the setup when you save it. A mistake shows as a field error on save
 | Field | Default | Notes |
 | --- | --- | --- |
 | Agent Execution Identity | Blank: the run acts as whoever starts it. | Set it for approvals, background work, and long waits. See [Create an execution identity](/setup/execution-identity/). |
-| Tool Authorization Policy Class | Blank: no policy. | An Apex class that allows, denies, or sends tool calls for approval by rule. See [Approve by rule](/approvals/policy/). |
+| Tool Authorization Policy Class | Blank: no policy. | An Apex class that allows, denies, or sends tool calls for approval by rule. It decides only tools whose Approval is Decided by Policy. See [Approve by rule](/approvals/policy/). |
 
 ## Limits
 

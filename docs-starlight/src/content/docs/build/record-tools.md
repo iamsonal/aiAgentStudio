@@ -50,7 +50,7 @@ The tool returns the new record's Id.
 | `defaultFieldValues` | No | Values every update sets. The agent cannot change them. |
 | `anchorRecordOnly` | No | `true` updates only the record the run started from, and the agent does not send an Id. Blank or `false` lets the agent pick any record of the object the run's user can edit. |
 
-Set `anchorRecordOnly` to `true` whenever the agent reads customer text, such as emails or case comments. That text could otherwise ask the agent to change a different record. Without it, Core warns when you validate an agent that has an Agent Execution Identity, unless the tool has Always Require Approval checked.
+Set `anchorRecordOnly` to `true` whenever the agent reads customer text, such as emails or case comments. That text could otherwise ask the agent to change a different record. Without it, Core warns when you validate an agent that has an Agent Execution Identity, unless the tool's Approval is Always Required.
 
 ## Run values
 

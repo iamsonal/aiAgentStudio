@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ApprovalTimeoutMinutes__c</fullName>
+    <description>Minutes an approval waits for a decision, from 1 to 10080 (7 days). Blank uses 1440 (24 hours). With Decided by Policy, a timeout the policy gives for a call replaces this one. Must be blank when Approval is Not Required.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Time allowed for an approval decision, in minutes. Blank uses 1440 (24 hours). The most is 10080 (7 days). With Decided by Policy, the policy may set a different deadline for a call. When the deadline passes, When Approval Expires decides what happens.</inlineHelpText>
+    <label>Approval Timeout (Minutes)</label>
+    <precision>5</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

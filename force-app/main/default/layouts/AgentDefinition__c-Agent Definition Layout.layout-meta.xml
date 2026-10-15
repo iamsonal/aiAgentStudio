@@ -125,7 +125,7 @@
         <fields>DeveloperName__c</fields>
         <fields>ToolType__c</fields>
         <fields>ImplementationType__c</fields>
-        <fields>RequiresApproval__c</fields>
+        <fields>ApprovalMode__c</fields>
         <fields>IsActive__c</fields>
         <relatedList>AgentTool__c.AgentDefinition__c</relatedList>
         <sortField>NAME</sortField>

@@ -99,10 +99,11 @@ private class DuplicateDeliveryTest {
             '{"type":"object","properties":{"amount":{"type":"number"}},"required":["amount"],"additionalProperties":false}'
         );
         refund.ToolType__c = AgentToolTypeTestFixtures.EXTERNAL;
-        refund.RequiresApproval__c = true;
+        refund.ApprovalMode__c = AgentKernelModels.APPROVAL_ALWAYS_REQUIRED;
+        refund.ApprovalExpiryAction__c = AgentKernelModels.APPROVAL_EXPIRY_DENY;
         refund.ApproverType__c = AgentKernelModels.APPROVER_USER;
         refund.ApproverUser__c = fixture.approverId;
-        refund.ApprovalTimeoutHours__c = 24;
+        refund.ApprovalTimeoutMinutes__c = 1440;
         AgentKernelTestFactory.updateRecord(refund);
         AgentConfigService.clearCacheForTest();
         AttendedAccessService.attendedForTest = false;

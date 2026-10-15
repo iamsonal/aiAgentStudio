@@ -244,8 +244,8 @@ Errors and outcomes:
   handles failures as it does for `Stays in This Org`: a callout failure or lost
   worker repeats the call within the run's retry limits, an unexpected
   exception returns to the model, and a malformed response pauses the run.
-  The tool is not asked for `_rationale` unless an approval or policy needs
-  it. A tool that throws `OutcomeUnknownException` is still `Unknown`.
+  The tool is not asked for `_rationale` unless its Approval is
+  `Always Required` or `Decided by Policy`. A tool that throws `OutcomeUnknownException` is still `Unknown`.
 - `Changes Outside Systems`, or a value Core does not recognize: an
   unexpected exception, a malformed or oversized response, or a lost worker
   makes the outcome `Unknown`. Core repeats the call only when the tool asks
@@ -308,27 +308,61 @@ configuration blank.
 ## `IToolAuthorizationPolicy`
 
 Policies follow the same query-only rule and governor reserve as context
-providers. Core evaluates the policy for every call; return `Allow`, `Deny`,
-or `RequireApproval`.
+providers. Core evaluates the policy only for calls of tools whose Approval is
+`Decided by Policy`, after it checks the call's arguments against the tool's
+Input Schema. Calls of `Not Required` and `Always Required` tools never reach it. Build the answer from the request:
 
-- `Deny` always stops the call. The model gets `TOOL_AUTHORIZATION_DENIED`
-  with your `reason` and continues, so write the reason for the model.
-- If the tool's `Always Require Approval` is checked, the call waits for approval
-  even on `Allow`. Otherwise `Allow` runs it and `RequireApproval` waits.
-- `RequireApproval` needs a nonblank `reason`. Optional `timeoutSeconds` is 60
-  through 604,800; blank uses the tool's Approval Timeout. Optional
-  `approverId` names a user or queue that decides this call instead of the
-  tool's approver, for example to escalate by amount.
+```apex
+public AgentKernelModels.ToolAuthorizationResponse evaluate(AgentKernelModels.ToolAuthorizationRequest request) {
+    if (request.toolType != 'NorthwindIssueRefund') {
+        return request.allow();
+    }
+    Decimal amount = request.decimalInput('amount');
+    if (amount == null) {
+        return request.deny('Send the refund amount.');
+    }
+    if (amount <= 25) {
+        return request.allow();
+    }
+    return request.requireApproval('The refund is over 25.').byQueue('Finance_Approvers');
+}
+```
+
+- Match on `request.toolType`, the API name of the tool's Agent Tool Type.
+  `toolName` is the tool's API name on the agent, and an admin can change it.
+  A policy that matches on `toolName` stops covering a tool when it is renamed.
+- `request.inputValue(name)` returns one top-level input. `request.decimalInput(name)`
+  returns a number input, or null when it is missing or not a number.
+- `request.deny(reason)` always stops the call. The model gets
+  `TOOL_AUTHORIZATION_DENIED` with your reason and continues, so write the
+  reason for the model.
+- `allow()` runs the call, and `requireApproval(reason)` makes it wait.
+- `requireApproval` needs a nonblank reason. The approver sees it. Describe
+  the call, such as "The refund is over 200", not who should approve it.
+- `requireApproval` returns `AgentKernelModels.ToolApprovalResponse`.
+  Name who approves this call with `.byQueue(apiName)` or `.byUser(userId)`.
+  Each replaces the other. The tool has no approver of its own, so a hold that
+  names neither pauses the run with `TOOL_AUTHORIZATION_POLICY_INVALID`.
+- `.withTimeoutMinutes(minutes)` sets this call's deadline in whole minutes,
+  1 through 10,080 (7 days). It replaces the tool's Approval Timeout, so a
+  large refund can get a shorter deadline than a small one. Without it, the
+  tool's Approval Timeout applies, or 24 hours when that is blank. The tool's
+  When Approval Expires always applies.
+- Core runs the policy again before an approved call runs. A deny still stops
+  it. Any other answer, including a hold that names someone else, lets the
+  approved call run, so a call is never approved twice.
 - Core pauses the run with `TOOL_AUTHORIZATION_POLICY_INVALID` for a blank
-  reason or out-of-range timeout, and with `APPROVAL_ASSIGNMENT_UNRESOLVED`
-  when neither policy nor tool names an eligible approver.
-- Runs of agents without an identity cannot wait: `RequireApproval` pauses
-  them with `INITIATING_USER_APPROVAL_UNSUPPORTED`. Return `Allow` or `Deny`
+  reason, a timeout outside 1 through 10,080 minutes, or a `byUser` Id that is
+  not a user.
+- Core pauses the run with `APPROVAL_ASSIGNMENT_UNRESOLVED` when the named
+  queue does not exist or does not support Agent Approval records, or the named
+  user cannot decide approvals. A missing queue never falls back to another
+  approver.
+- The `Run Waiting` event records `requiredBy`: `Tool Setting` for an
+  `Always Required` tool, or `Policy`.
+- Runs of agents without an identity cannot wait: `requireApproval` pauses
+  them with `INITIATING_USER_APPROVAL_UNSUPPORTED`. Return `allow()` or `deny()`
   when `request.executionIdentityId` is null.
-- Upgrading from `executionMode`: `executionMode == 'Delegated Principal'`
-  becomes `executionIdentityId != null`, and `'Initiating User'` becomes
-  `executionIdentityId == null`. `ExecutionPrincipal`'s constructor takes the
-  identity Id in place of the mode.
 
 Core creates the Agent Approval and decides who may approve it; see
 [Require approval](https://iamsonal.github.io/aiAgentStudio/approvals/require/).

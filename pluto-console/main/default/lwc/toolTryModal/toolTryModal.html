@@ -103,7 +103,9 @@
             <div class="screen">
                 <template lwc:if={showApprovalNote}>
                     <div class="slds-scoped-notification slds-scoped-notification_light slds-m-bottom_small" role="status" data-approval-note>
-                        <p class="slds-text-body_small">In a real run this tool waits for approval. A dry run skips it, because nothing is kept.</p>
+                        <p class="slds-text-body_small">
+                            In a real run, calls of this tool can wait for approval. A dry run skips approval and the agent's policy, because nothing is kept.
+                        </p>
                     </div>
                 </template>
 
